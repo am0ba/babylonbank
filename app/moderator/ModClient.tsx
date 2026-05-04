@@ -65,11 +65,22 @@ export default function ModClient({ user, stats }: { user: any, stats?: any }) {
       
       {stats && (
         <div className="bg-yellow-400/10 rounded-3xl p-6 border border-yellow-400/20 grid grid-cols-2 md:grid-cols-5 gap-4 items-center mb-8">
-          <div>
-            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Казна Сервера</p>
-            <p className="text-xl text-yellow-400 font-mono font-bold flex items-center">
-              {stats.treasuryBalance} <img src={SECRET_TEXTURES.diamond} className="w-4 h-4 ml-1 opacity-80 mix-blend-screen" alt="diamond" />
-            </p>
+          <div className="col-span-2 md:col-span-1">
+            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-2">Казна Сервера</p>
+            <div className="flex flex-col gap-1">
+              <p className="text-sm text-yellow-400 font-mono font-bold flex items-center gap-1.5">
+                {stats.treasuryBalance} <img src={SECRET_TEXTURES.diamond} className="w-3.5 h-3.5 opacity-80 mix-blend-screen" alt="diamond" />
+              </p>
+              <p className="text-sm text-white font-mono font-bold flex items-center gap-1.5">
+                {stats.treasuryNetherite} <img src={SECRET_TEXTURES.netherite} className="w-3.5 h-3.5" style={{ imageRendering: 'pixelated' }} alt="netherite" />
+              </p>
+              <p className="text-sm text-white font-mono font-bold flex items-center gap-1.5">
+                {stats.treasuryGarant} <img src={SECRET_TEXTURES.garant} className="w-3.5 h-3.5" style={{ imageRendering: 'pixelated' }} alt="garant" />
+              </p>
+              <p className="text-sm text-white font-mono font-bold flex items-center gap-1.5">
+                {stats.treasuryEchoShard} <img src={SECRET_TEXTURES.echo_shard} className="w-3.5 h-3.5" style={{ imageRendering: 'pixelated' }} alt="shard" />
+              </p>
+            </div>
           </div>
           <div>
             <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Свободные Алмазы</p>

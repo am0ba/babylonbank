@@ -86,26 +86,24 @@ export default function ExchangeClient({ user }: { user: any }) {
     { id: 'garant', name: 'Целый гарант', ticker: 'GRNT', price: prices.garant, base: BASE_PRICES.garant, has: user.garant || 0, img: SECRET_TEXTURES.garant },
   ];
 
+  const feePercent = user.subscription_active ? 0.02 : 0.10;
+
   // Calculate swap receive amount roughly for UI
   let receiveText = '---';
   let receiveAmount = 0;
   if (swapFrom === 'diamond' && swapTo !== 'diamond') {
     const it = marketItems.find(m => m.id === swapTo);
     if (it && it.price) {
-      // You specify how many items you want to BUY using swapAmount. 
-      // Wait, in standard SWAP UI, swapAmount is the "FROM" Amount.
-      // So if from=Diamond, amount=480, you receive 480 / price items.
       receiveAmount = Math.floor(swapAmount / it.price);
       receiveText = `≈ ${receiveAmount} шт.`;
     }
   } else if (swapTo === 'diamond' && swapFrom !== 'diamond') {
     const it = marketItems.find(m => m.id === swapFrom);
     if (it && it.price) {
-      // You specify how many items to SELL.
       const raw = swapAmount * it.price;
-      const fee = Math.floor(raw * 0.02);
+      const fee = Math.floor(raw * feePercent);
       receiveAmount = raw - fee;
-      receiveText = `≈ ${receiveAmount} шт. (-2% ком.)`;
+      receiveText = `≈ ${receiveAmount} шт. (-${feePercent * 100}% ком.)`;
     }
   } else if (swapFrom === 'garant' && swapTo === 'echo_shard') {
     receiveAmount = swapAmount * 48;
@@ -118,7 +116,7 @@ export default function ExchangeClient({ user }: { user: any }) {
     const toIt = marketItems.find(m => m.id === swapTo);
     if (fromIt && toIt && fromIt.price && toIt.price) {
       const rawDiamond = swapAmount * fromIt.price;
-      const fee = Math.floor(rawDiamond * 0.02);
+      const fee = Math.floor(rawDiamond * feePercent);
       const net = rawDiamond - fee;
       receiveAmount = Math.floor(net / toIt.price);
       receiveText = `≈ ${receiveAmount} шт. (сдача ${net - receiveAmount * toIt.price} алм)`;
@@ -225,9 +223,9 @@ export default function ExchangeClient({ user }: { user: any }) {
                       {item.price} <img src={SECRET_TEXTURES.diamond} className="w-5 h-5" style={{ imageRendering: 'pixelated' }} alt="dia" />
                     </div>
                     {item.id !== 'diamond' && (
-                      <div className={`text-xs font-mono font-bold flex items-center gap-1 mt-1 ${isUp ? 'text-green-500' : 'text-red-500'}`}>
+                      <div className={`text-[10px] uppercase font-bold flex items-center gap-1 mt-1 ${isUp ? 'text-green-500' : 'text-red-500'}`}>
                         {isUp ? <TrendingUp className="w-3 h-3"/> : <TrendingDown className="w-3 h-3" />}
-                        {isUp ? '+' : ''}{changePercent}% от базы
+                        {isUp ? '+' : ''}{changePercent}%
                       </div>
                     )}
                   </div>
@@ -308,28 +306,6 @@ export default function ExchangeClient({ user }: { user: any }) {
               >
                 {loadingCode === 'swap' ? <RefreshCw className="w-5 h-5 animate-spin"/> : 'Обменять'}
               </button>
-            </div>
-
-            <div className="bg-black/50 border border-zinc-800 rounded-3xl p-6">
-              <h4 className="font-bold uppercase text-zinc-400 text-sm tracking-widest mb-4">Информация</h4>
-              <ul className="space-y-3 text-xs text-zinc-400">
-                <li className="flex gap-2">
-                  <span className="text-yellow-500">▹</span>
-                  Продажа сырья за алмазы: комиссия 2%
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-yellow-500">▹</span>
-                  Покупка сырья: 0%
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-yellow-500">▹</span>
-                  Крафт Гарантов ↔ Осколков (48:1): 0%
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-yellow-500">▹</span>
-                  Прямой обмен предметов между собой: комиссия 2%
-                </li>
-              </ul>
             </div>
           </div>
         </div>

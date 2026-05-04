@@ -195,7 +195,7 @@ export async function executeTransfer(params: {
 }
 
 async function getTreasuryAccount() {
-  let { data: treasuryUser } = await supabase.from('users').select('id').eq('nick', 'Вавилон_Казна').maybeSingle();
+  let { data: treasuryUser } = await supabase.from('users').select('*').eq('nick', 'Вавилон_Казна').maybeSingle();
   if (!treasuryUser) {
     const { data: newUser, error: createErr } = await supabase.from('users').insert([{ nick: 'Вавилон_Казна', password: '123', role: 'admin' }]).select('id').single();
     if (createErr || !newUser) return { user: null, account: null };
@@ -806,6 +806,9 @@ export async function adminAccrueInterest() {
 export async function getPublicStats() {
   const treasury = await getTreasuryAccount();
   const balance = treasury.account ? treasury.account.balance : 0;
+  const netherite = treasury.user?.netherite || 0;
+  const echo_shard = treasury.user?.echo_shard || 0;
+  const garant = treasury.user?.garant || 0;
   
   // Total in active accounts across system
   const { data: allActive } = await supabase.from('accounts').select('balance').eq('account_type', 'active');
@@ -838,6 +841,9 @@ export async function getPublicStats() {
 
   return {
     treasuryBalance: balance,
+    treasuryNetherite: netherite,
+    treasuryEchoShard: echo_shard,
+    treasuryGarant: garant,
     activeCirculation: activeSum + freeDepositSum,
     issuedCredits: creditSum,
     securedDeposits: depositSum,
@@ -1021,7 +1027,9 @@ export async function swapItems(fromAsset: string, toAsset: string, fromAmount: 
 
       // Sell side
       const sellValue = fromAmount * fromPrice;
-      const fee = Math.floor(sellValue * 0.02);
+      const isPremium = user.subscription_active;
+      const feePercent = isPremium ? 0.02 : 0.10;
+      const fee = Math.floor(sellValue * feePercent);
       const netDiamonds = sellValue - fee;
 
       // Buy side
@@ -1094,9 +1102,11 @@ export async function sellMarketItem(itemType: 'netherite' | 'echo_shard' | 'gar
 
     const currentPrice = getDynamicPrice(basePrice, Date.now());
     
-    // Give them diamonds back (-2% fee)
+    // Give them diamonds back
     const rawTotal = currentPrice * quantity;
-    const fee = Math.floor(rawTotal * 0.02); // 2% fee
+    const isPremium = user.subscription_active;
+    const feePercent = isPremium ? 0.02 : 0.10;
+    const fee = Math.floor(rawTotal * feePercent);
     const totalEarnings = rawTotal - fee;
 
     const sourceAcc = user.accountsList.find((a: any) => a.is_primary && a.account_type === 'active');
