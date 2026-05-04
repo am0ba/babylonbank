@@ -943,6 +943,14 @@ export async function buyMarketItem(itemType: 'netherite' | 'echo_shard' | 'gara
     const basePrice = BASE_PRICES[itemType];
     if (!basePrice) return { error: 'Неизвестный товар' };
 
+    const treasury = await getTreasuryAccount();
+    if (!treasury || !treasury.user) return { error: 'Казна не найдена' };
+
+    const treasuryItemCount = Number(treasury.user[itemType]) || 0;
+    if (treasuryItemCount < quantity) {
+      return { error: 'В казне недостаточно товара для покупки' };
+    }
+
     const currentPrice = getDynamicPrice(basePrice, Date.now());
     const totalCost = currentPrice * quantity;
 
@@ -960,12 +968,13 @@ export async function buyMarketItem(itemType: 'netherite' | 'echo_shard' | 'gara
       return { error: addErr.message };
     }
 
+    await supabase.from('users').update({ [itemType]: treasuryItemCount - quantity }).eq('id', treasury.user.id);
+
     await supabase.from('transactions').insert([{
       from_user_id: user.id, to_user_id: user.id, amount: totalCost, fee: 0, tx_type: 'market_buy',
       note: `Покупка на бирже TR-EX: ${quantity} ед. ${itemType} по курсу ${currentPrice}`
     }]);
 
-    const treasury = await getTreasuryAccount();
     if (treasury && treasury.account) {
       await supabase.from('accounts').update({ balance: Number(treasury.account.balance) + totalCost }).eq('id', treasury.account.id);
     }
@@ -1042,10 +1051,21 @@ export async function swapItems(fromAsset: string, toAsset: string, fromAmount: 
       const currentToItems = Number(user[toAsset]) || 0;
 
       // Update source
+      const treasury = await getTreasuryAccount();
+      if (!treasury || !treasury.user) return { error: 'Казна не найдена' };
+
+      const treasuryToCount = Number(treasury.user[toAsset]) || 0;
+      if (treasuryToCount < receiveQty) return { error: `В казне недостаточно ${toAsset} для обмена` };
+
       await supabase.from('users').update({
         [fromAsset]: currentFromItems - fromAmount,
         [toAsset]: currentToItems + receiveQty
       }).eq('id', user.id);
+
+      await supabase.from('users').update({
+        [fromAsset]: (Number(treasury.user[fromAsset]) || 0) + fromAmount,
+        [toAsset]: treasuryToCount - receiveQty
+      }).eq('id', treasury.user.id);
 
       // Refund diamonds if any
       let noteExtra = '';
@@ -1115,9 +1135,17 @@ export async function sellMarketItem(itemType: 'netherite' | 'echo_shard' | 'gar
     const { error: deductErr } = await supabase.from('users').update({ [itemType]: currentItemCount - quantity }).eq('id', user.id);
     if (deductErr) return { error: deductErr.message };
 
+    const treasury = await getTreasuryAccount();
+    if (treasury && treasury.user) {
+       await supabase.from('users').update({ [itemType]: (Number(treasury.user[itemType]) || 0) + quantity }).eq('id', treasury.user.id);
+    }
+
     const { error: addErr } = await supabase.from('accounts').update({ balance: Number(sourceAcc.balance) + totalEarnings }).eq('id', sourceAcc.id);
     if (addErr) {
       await supabase.from('users').update({ [itemType]: currentItemCount }).eq('id', user.id);
+      if (treasury && treasury.user) {
+         await supabase.from('users').update({ [itemType]: (Number(treasury.user[itemType]) || 0) }).eq('id', treasury.user.id);
+      }
       return { error: addErr.message };
     }
 
@@ -1126,11 +1154,8 @@ export async function sellMarketItem(itemType: 'netherite' | 'echo_shard' | 'gar
       note: `Продажа на бирже TR-EX: ${quantity} ед. ${itemType} по курсу ${currentPrice}`
     }]);
 
-    if (fee > 0) {
-      const treasury = await getTreasuryAccount();
-      if (treasury && treasury.account) {
-        await supabase.from('accounts').update({ balance: Number(treasury.account.balance) + fee }).eq('id', treasury.account.id);
-      }
+    if (fee > 0 && treasury && treasury.account) {
+      await supabase.from('accounts').update({ balance: Number(treasury.account.balance) + fee }).eq('id', treasury.account.id);
     }
 
     return { success: true };

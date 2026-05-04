@@ -1,5 +1,5 @@
 import ExchangeClient from './ExchangeClient';
-import { getSessionUser } from '@/lib/actions';
+import { getSessionUser, getPublicStats } from '@/lib/actions';
 import { redirect } from 'next/navigation';
 
 export default async function Page() {
@@ -7,6 +7,8 @@ export default async function Page() {
   if (!user) {
     redirect('/login');
   }
+  
+  const stats = await getPublicStats();
 
-  return <ExchangeClient user={user} />;
+  return <ExchangeClient user={user} stats={stats} />;
 }

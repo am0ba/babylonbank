@@ -6,7 +6,7 @@ import { TrendingUp, TrendingDown, Clock, Search, RefreshCw, ShoppingCart, Activ
 import { getCurrentMarketPrices, BASE_PRICES } from '@/lib/marketUtils';
 import { requestItemWithdraw, swapItems, buyMarketItem, sellMarketItem } from '@/lib/actions';
 
-export default function ExchangeClient({ user }: { user: any }) {
+export default function ExchangeClient({ user, stats }: { user: any, stats?: any }) {
   const [activeTab, setActiveTab] = useState('items'); // stocks, items
   const [prices, setPrices] = useState(getCurrentMarketPrices());
   const [loadingCode, setLoadingCode] = useState('');
@@ -124,6 +124,20 @@ export default function ExchangeClient({ user }: { user: any }) {
   } else if (swapFrom === swapTo) {
     receiveAmount = swapAmount;
     receiveText = `= ${receiveAmount} шт.`;
+  }
+
+  let treasuryLacksItems = false;
+  if (swapTo === 'diamond') {
+    const tCount = stats ? (stats.treasuryBalance || 0) : 0;
+    if (tCount <= 0 || receiveAmount > tCount) {
+      treasuryLacksItems = true;
+    }
+  } else if (!(swapFrom === 'garant' && swapTo === 'echo_shard') && !(swapFrom === 'echo_shard' && swapTo === 'garant') && swapFrom !== swapTo) {
+    const treasuryKey = 'treasury' + swapTo.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+    const tCount = stats ? (stats[treasuryKey as keyof typeof stats] || 0) : 0;
+    if (tCount <= 0 || receiveAmount > tCount) {
+      treasuryLacksItems = true;
+    }
   }
 
   // Swap logic adjustment: If from is Diamond, the generic backend function takes `fromAmount` as target quantity.
@@ -301,10 +315,10 @@ export default function ExchangeClient({ user }: { user: any }) {
 
               <button 
                 onClick={doTrade}
-                disabled={loadingCode !== '' || swapAmount <= 0 || swapFrom === swapTo || receiveAmount <= 0}
+                disabled={loadingCode !== '' || swapAmount <= 0 || swapFrom === swapTo || receiveAmount <= 0 || treasuryLacksItems}
                 className="w-full mt-6 py-4 bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500 hover:text-black font-bold uppercase tracking-widest rounded-xl transition-colors border border-yellow-500/50 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loadingCode === 'swap' ? <RefreshCw className="w-5 h-5 animate-spin"/> : 'Обменять'}
+                {loadingCode === 'swap' ? <RefreshCw className="w-5 h-5 animate-spin"/> : treasuryLacksItems ? 'Покупка временно не доступна' : 'Обменять'}
               </button>
             </div>
           </div>
