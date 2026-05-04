@@ -2,6 +2,7 @@
 import { cookies } from 'next/headers';
 import { supabase } from './supabase';
 import crypto from 'crypto';
+import { getDynamicPrice, BASE_PRICES } from './marketUtils';
 
 export async function getSessionUser() {
   const cookieStore = await cookies();
@@ -45,6 +46,10 @@ export async function getSessionUser() {
 
     const { data: myRequests } = await supabase.from('requests').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
     user.requestsList = myRequests || [];
+
+    user.netherite = user.netherite || 0;
+    user.echo_shard = user.echo_shard || 0;
+    user.garant = user.garant || 0;
 
     return user;
   } catch(e) {
@@ -523,12 +528,41 @@ export async function requestWithdraw(accountId: string, amount: number) {
   return { success: true, code };
 }
 
+export async function requestItemWithdraw(itemType: 'netherite' | 'echo_shard' | 'garant', amount: number) {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Не авторизован');
+  if (amount <= 0) throw new Error('Количество должно быть больше нуля');
+
+  const currentCount = Number(user[itemType]) || 0;
+  if (currentCount < amount) throw new Error('Недостаточно предметов для вывода');
+
+  const secretCode = crypto.randomBytes(2).toString('hex').toUpperCase();
+
+  const { error: updErr } = await supabase.from('users').update({ [itemType]: currentCount - amount }).eq('id', user.id);
+  if (updErr) throw new Error('Ошибка при списании: ' + updErr.message);
+
+  const { error: reqErr } = await supabase.from('requests').insert([{
+    user_id: user.id,
+    req_type: 'withdraw_item',
+    amount: amount,
+    status: 'pending',
+    details: JSON.stringify({ itemType, code: secretCode })
+  }]);
+
+  if (reqErr) {
+    await supabase.from('users').update({ [itemType]: currentCount }).eq('id', user.id);
+    throw new Error('Ошибка создания заявки: ' + reqErr.message);
+  }
+
+  return { success: true, code: secretCode };
+}
+
 export async function confirmWithdraw(requestId: string, code: string) {
   const user = await getSessionUser();
   if (!user || (user.role !== 'admin' && user.role !== 'moderator')) throw new Error('Нет прав');
 
   const { data: req } = await supabase.from('requests').select('*').eq('id', requestId).single();
-  if (!req || req.status !== 'pending' || req.req_type !== 'withdraw') {
+  if (!req || req.status !== 'pending' || (req.req_type !== 'withdraw' && req.req_type !== 'withdraw_item')) {
     throw new Error('Заявка не найдена или уже обработана');
   }
 
@@ -891,5 +925,206 @@ export async function executeNovaPay(merchantNick: string, amount: number, itemD
   } catch (err: any) {
     console.error('NovaPay Execute Error:', err);
     return { error: `Внутренняя ошибка обработчика платежа: ${err.message || String(err)}` };
+  }
+}
+
+export async function buyMarketItem(itemType: 'netherite' | 'echo_shard' | 'garant', quantity: number) {
+  try {
+    const user = await getSessionUser();
+    if (!user) return { error: 'Не авторизован' };
+    if (quantity <= 0) return { error: 'Неверное количество' };
+
+    const basePrice = BASE_PRICES[itemType];
+    if (!basePrice) return { error: 'Неизвестный товар' };
+
+    const currentPrice = getDynamicPrice(basePrice, Date.now());
+    const totalCost = currentPrice * quantity;
+
+    const sourceAcc = user.accountsList.find((a: any) => a.is_primary && a.account_type === 'active');
+    if (!sourceAcc) return { error: 'Нет активного основного счета' };
+    if (sourceAcc.balance < totalCost) return { error: `Недостаточно средств. Нужно ${totalCost} алмазов` };
+
+    const { error: deductErr } = await supabase.from('accounts').update({ balance: Number(sourceAcc.balance) - totalCost }).eq('id', sourceAcc.id);
+    if (deductErr) return { error: deductErr.message };
+
+    const currentItemCount = Number(user[itemType]) || 0;
+    const { error: addErr } = await supabase.from('users').update({ [itemType]: currentItemCount + quantity }).eq('id', user.id);
+    if (addErr) {
+      await supabase.from('accounts').update({ balance: Number(sourceAcc.balance) }).eq('id', sourceAcc.id);
+      return { error: addErr.message };
+    }
+
+    await supabase.from('transactions').insert([{
+      from_user_id: user.id, to_user_id: user.id, amount: totalCost, fee: 0, tx_type: 'market_buy',
+      note: `Покупка на бирже TR-EX: ${quantity} ед. ${itemType} по курсу ${currentPrice}`
+    }]);
+
+    const treasury = await getTreasuryAccount();
+    if (treasury && treasury.account) {
+      await supabase.from('accounts').update({ balance: Number(treasury.account.balance) + totalCost }).eq('id', treasury.account.id);
+    }
+
+    return { success: true };
+  } catch (e: any) {
+    return { error: e.message };
+  }
+}
+
+export async function swapItems(fromAsset: string, toAsset: string, fromAmount: number) {
+  try {
+    const user = await getSessionUser();
+    if (!user) return { error: 'Не авторизован' };
+    if (fromAmount <= 0) return { error: 'Неверное количество' };
+
+    // 1. Direct crafting: Garant <-> Echo Shards (0% fee, exact 1:48 ratio)
+    if (fromAsset === 'garant' && toAsset === 'echo_shard') {
+      const current = Number(user.garant) || 0;
+      if (current < fromAmount) return { error: 'Недостаточно Целых Гарантов' };
+      const gainedShards = fromAmount * 48;
+      await supabase.from('users').update({ 
+        garant: current - fromAmount,
+        echo_shard: (Number(user.echo_shard) || 0) + gainedShards
+      }).eq('id', user.id);
+      await supabase.from('transactions').insert([{
+        from_user_id: user.id, to_user_id: user.id, amount: 0, fee: 0, tx_type: 'market_swap',
+        note: `Крафт: Разбито ${fromAmount} Гарантов на ${gainedShards} Осколков`
+      }]);
+      return { success: true };
+    }
+    
+    if (fromAsset === 'echo_shard' && toAsset === 'garant') {
+      const current = Number(user.echo_shard) || 0;
+      const neededShards = fromAmount * 48;
+      if (current < neededShards) return { error: `Недостаточно Осколков. Нужно ${neededShards}` };
+      await supabase.from('users').update({ 
+        echo_shard: current - neededShards,
+        garant: (Number(user.garant) || 0) + fromAmount
+      }).eq('id', user.id);
+      await supabase.from('transactions').insert([{
+        from_user_id: user.id, to_user_id: user.id, amount: 0, fee: 0, tx_type: 'market_swap',
+        note: `Крафт: Собрано ${fromAmount} Гарантов из ${neededShards} Осколков`
+      }]);
+      return { success: true };
+    }
+
+    // Generic Item to Item Swap via Diamond equivalent
+    const now = Date.now();
+    const fromBase = (BASE_PRICES as any)[fromAsset];
+    const toBase = (BASE_PRICES as any)[toAsset];
+
+    if (fromBase && toBase) {
+      const currentFromItems = Number(user[fromAsset]) || 0;
+      if (currentFromItems < fromAmount) return { error: `Недостаточно товара ${fromAsset}` };
+
+      const fromPrice = getDynamicPrice(fromBase, now);
+      const toPrice = getDynamicPrice(toBase, now);
+
+      // Sell side
+      const sellValue = fromAmount * fromPrice;
+      const fee = Math.floor(sellValue * 0.02);
+      const netDiamonds = sellValue - fee;
+
+      // Buy side
+      const receiveQty = Math.floor(netDiamonds / toPrice);
+      if (receiveQty <= 0) return { error: 'Слишком маленькая сумма для обмена на 1 единицу' };
+
+      const costDiamonds = receiveQty * toPrice;
+      const refundDiamonds = netDiamonds - costDiamonds;
+
+      const currentToItems = Number(user[toAsset]) || 0;
+
+      // Update source
+      await supabase.from('users').update({
+        [fromAsset]: currentFromItems - fromAmount,
+        [toAsset]: currentToItems + receiveQty
+      }).eq('id', user.id);
+
+      // Refund diamonds if any
+      let noteExtra = '';
+      if (refundDiamonds > 0) {
+        const sourceAcc = user.accountsList.find((a: any) => a.is_primary && a.account_type === 'active');
+        if (sourceAcc) {
+           await supabase.from('accounts').update({ balance: Number(sourceAcc.balance) + refundDiamonds }).eq('id', sourceAcc.id);
+           noteExtra = ` (сдача ${refundDiamonds} алмазов)`;
+        }
+      }
+
+      await supabase.from('transactions').insert([{
+        from_user_id: user.id, to_user_id: user.id, amount: costDiamonds, fee: fee, tx_type: 'market_swap',
+        note: `Прямой обмен: ${fromAmount} ${fromAsset} на ${receiveQty} ${toAsset}${noteExtra}`
+      }]);
+
+      if (fee > 0) {
+        const treasury = await getTreasuryAccount();
+        if (treasury && treasury.account) {
+          await supabase.from('accounts').update({ balance: Number(treasury.account.balance) + fee }).eq('id', treasury.account.id);
+        }
+      }
+
+      return { success: true };
+    }
+
+    // 2. Market trading with Diamonds (Diamond <-> Item)
+    if (fromAsset === 'diamond') {
+      if (['netherite', 'echo_shard', 'garant'].includes(toAsset)) {
+        // Buy Item. "fromAmount" is how many DIAMONDS we pay? No, let's treat fromAmount as how many items we BUY to be simple, 
+        // wait, the signature is fromAmount. If fromAsset is Diamond, fromAmount is DIAMONDS.
+        // It's easier if we just use buyMarketItem / sellMarketItem from UI.
+        return { error: 'Используйте прямую покупку/продажу для алмазов' };
+      }
+    }
+
+    return { error: 'Этот тип обмена недоступен' };
+  } catch (e: any) {
+    return { error: e.message };
+  }
+}
+
+export async function sellMarketItem(itemType: 'netherite' | 'echo_shard' | 'garant', quantity: number) {
+  try {
+    const user = await getSessionUser();
+    if (!user) return { error: 'Не авторизован' };
+    if (quantity <= 0) return { error: 'Неверное количество' };
+
+    const currentItemCount = Number(user[itemType]) || 0;
+    if (currentItemCount < quantity) return { error: `Недостаточно товара. Имеется: ${currentItemCount}` };
+
+    const basePrice = BASE_PRICES[itemType];
+    if (!basePrice) return { error: 'Неизвестный товар' };
+
+    const currentPrice = getDynamicPrice(basePrice, Date.now());
+    
+    // Give them diamonds back (-2% fee)
+    const rawTotal = currentPrice * quantity;
+    const fee = Math.floor(rawTotal * 0.02); // 2% fee
+    const totalEarnings = rawTotal - fee;
+
+    const sourceAcc = user.accountsList.find((a: any) => a.is_primary && a.account_type === 'active');
+    if (!sourceAcc) return { error: 'Нет активного основного счета' };
+
+    const { error: deductErr } = await supabase.from('users').update({ [itemType]: currentItemCount - quantity }).eq('id', user.id);
+    if (deductErr) return { error: deductErr.message };
+
+    const { error: addErr } = await supabase.from('accounts').update({ balance: Number(sourceAcc.balance) + totalEarnings }).eq('id', sourceAcc.id);
+    if (addErr) {
+      await supabase.from('users').update({ [itemType]: currentItemCount }).eq('id', user.id);
+      return { error: addErr.message };
+    }
+
+    await supabase.from('transactions').insert([{
+      from_user_id: user.id, to_user_id: user.id, amount: totalEarnings, fee: fee, tx_type: 'market_sell',
+      note: `Продажа на бирже TR-EX: ${quantity} ед. ${itemType} по курсу ${currentPrice}`
+    }]);
+
+    if (fee > 0) {
+      const treasury = await getTreasuryAccount();
+      if (treasury && treasury.account) {
+        await supabase.from('accounts').update({ balance: Number(treasury.account.balance) + fee }).eq('id', treasury.account.id);
+      }
+    }
+
+    return { success: true };
+  } catch (e: any) {
+    return { error: e.message };
   }
 }

@@ -1,0 +1,5 @@
+-- Добавим новые валюты в таблицу users
+ALTER TABLE users 
+ADD COLUMN IF NOT EXISTS netherite NUMERIC DEFAULT 0,
+ADD COLUMN IF NOT EXISTS echo_shard NUMERIC DEFAULT 0,
+ADD COLUMN IF NOT EXISTS garant NUMERIC DEFAULT 0;

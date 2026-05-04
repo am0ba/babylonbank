@@ -7,10 +7,6 @@ export default async function Page() {
   if (!user) {
     redirect('/login');
   }
-  
-  if (user.role !== 'admin') {
-    redirect('/');
-  }
 
   return <ExchangeClient user={user} />;
 }

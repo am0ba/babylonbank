@@ -142,8 +142,9 @@ export default function ModClient({ user, stats }: { user: any, stats?: any }) {
              <div className="space-y-4 max-h-[400px] overflow-y-auto">
                {requests.map(r => {
                  let detailsMarkup = <p className="text-xs text-zinc-500 font-mono mt-1">Детали: {r.details}</p>;
+                 let parsed: any = null;
                  try {
-                   const parsed = JSON.parse(r.details);
+                   parsed = JSON.parse(r.details);
                    if (parsed && typeof parsed === 'object' && parsed.payback) {
                      let typeName = 'Потребительский';
                      if (parsed.creditType === 'business') typeName = 'Развитие бизнеса';
@@ -165,10 +166,16 @@ export default function ModClient({ user, stats }: { user: any, stats?: any }) {
                  <div key={r.id} className="bg-black/50 border border-zinc-800 p-4 rounded-xl flex flex-col gap-3">
                    <div>
                      <p className="text-sm font-bold text-white mb-1"><span className="text-amber-500 uppercase mr-2">{r.req_type}</span> от {r.users?.nick}</p>
-                     <p className="text-xs text-zinc-500 font-mono">Сумма: {r.amount} <img src={SECRET_TEXTURES.diamond} className="w-3 h-3 inline-block opacity-70"/></p>
-                     {r.req_type !== 'withdraw' && detailsMarkup}
+                     <p className="text-xs text-zinc-500 font-mono flex items-center gap-1">Сумма: {r.amount} 
+                       {r.req_type === 'withdraw_item' ? (
+                         <img src={SECRET_TEXTURES[parsed?.itemType as keyof typeof SECRET_TEXTURES] || SECRET_TEXTURES.chest} className="w-4 h-4 object-contain" style={{ imageRendering: 'pixelated' }} />
+                       ) : (
+                         <img src={SECRET_TEXTURES.diamond} className="w-3 h-3 object-contain" style={{ imageRendering: 'pixelated' }} />
+                       )}
+                     </p>
+                     {r.req_type !== 'withdraw' && r.req_type !== 'withdraw_item' && detailsMarkup}
                    </div>
-                   {r.req_type === 'withdraw' ? (
+                   {r.req_type === 'withdraw' || r.req_type === 'withdraw_item' ? (
                      <div className="flex gap-2 items-center w-full mt-2 border-t border-zinc-800 pt-3">
                        <input
                          type="text"

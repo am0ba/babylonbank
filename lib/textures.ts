@@ -5,4 +5,7 @@ export const SECRET_TEXTURES = {
   emida_coin: 'https://raw.githubusercontent.com/am0ba/SECRET_TEXTURES/5498f3e6a5a687981d79f7407bc173511bf93719/emerald.png',
   ticket: 'https://raw.githubusercontent.com/am0ba/SECRET_TEXTURES/5498f3e6a5a687981d79f7407bc173511bf93719/paper.png',
   chest: 'https://raw.githubusercontent.com/am0ba/SECRET_TEXTURES/af534a577472d26a1ca2fcc4041933d9593c58ce/Chest.png',
+  netherite: 'https://raw.githubusercontent.com/am0ba/SECRET_TEXTURES/af534a577472d26a1ca2fcc4041933d9593c58ce/netherite_ingot.png',
+  echo_shard: 'https://raw.githubusercontent.com/am0ba/SECRET_TEXTURES/735ac792a894de29761d34b063773dfd22b7b088/garant_shard.png',
+  garant: 'https://raw.githubusercontent.com/am0ba/SECRET_TEXTURES/735ac792a894de29761d34b063773dfd22b7b088/garant.png'
 };
