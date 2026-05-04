@@ -16,11 +16,8 @@ export default function LayoutClient({ user, children }: { user: any; children: 
   const navLinks = [
     { name: 'Главная', href: '/', icon: <LayoutDashboard className="w-4 h-4" /> },
     { name: 'Счета', href: '/accounts', icon: <Wallet className="w-4 h-4" /> },
+    { name: 'Биржа', href: '/exchange', icon: <TrendingUp className="w-4 h-4" /> },
   ];
-
-  if (user?.role === 'admin') {
-    navLinks.push({ name: 'Биржа', href: '/exchange', icon: <TrendingUp className="w-4 h-4" /> });
-  }
 
   navLinks.push(
     { name: 'Услуги', href: '/services', icon: <Briefcase className="w-4 h-4" /> },
