@@ -77,12 +77,6 @@ export default function DashboardClient({ user }: { user: any }) {
           <h2 className="text-3xl font-bold">Добро пожаловать, <span className="text-yellow-400">{user?.nick}</span></h2>
           <p className="text-zinc-500 text-sm italic">ID: {user?.id}</p>
         </div>
-        <div className="mt-4 md:mt-0 text-left md:text-right">
-          <p className="text-xs text-zinc-500 uppercase font-bold">Кредитный лимит</p>
-          <p className={`text-lg font-mono font-bold tracking-tight inline-flex items-center gap-1 ${user?.loot_balance < -512 ? 'text-red-500' : 'text-zinc-300'}`}>
-            -512 <img src={SECRET_TEXTURES.diamond} className="w-4 h-4 object-contain" alt="diamond" />
-          </p>
-        </div>
       </div>
 
       {msg.text && (
@@ -152,14 +146,20 @@ export default function DashboardClient({ user }: { user: any }) {
           {transactions.length === 0 ? <p className="text-sm text-zinc-500 font-mono">НЕТ ТРАНЗАКЦИЙ</p> : null}
           {transactions.slice(0, 6).map((tx: any, i: number) => {
             const isOut = tx.from_user_id === user.id;
+            const isNovaPay = tx.note?.includes('NOVA PAY');
             return (
             <div key={i} onClick={() => setSelectedTx(tx)} className="flex justify-between items-center pb-3 border-b border-zinc-800/50 last:border-0 last:pb-0 cursor-pointer hover:bg-zinc-800/50 p-2 rounded transition-colors -mx-2">
               <div>
-                <span className={`text-sm flex items-center gap-1.5 uppercase text-[11px] font-bold tracking-wider ${isOut ? 'text-red-500/80' : 'text-green-500/80'}`}>
-                  {tx.tx_type === 'transfer' && <ArrowRightLeft className={`w-3.5 h-3.5 ${isOut ? 'text-zinc-500' : 'text-green-500'}`}/>}
-                  {tx.tx_type === 'transfer' 
+                <span className={`text-sm flex items-center gap-1.5 uppercase text-[11px] font-bold tracking-wider ${isNovaPay ? 'text-blue-500' : (isOut ? 'text-red-500/80' : 'text-green-500/80')}`}>
+                  {isNovaPay ? (
+                     <span className="bg-blue-600 text-white w-4 h-4 rounded flex items-center justify-center italic tracking-tighter text-[9px]">N</span>
+                  ) : (
+                    tx.tx_type === 'transfer' && <ArrowRightLeft className={`w-3.5 h-3.5 ${isOut ? 'text-zinc-500' : 'text-green-500'}`}/>
+                  )}
+                  {isNovaPay ? (isOut ? 'NOVA PAY Списание' : 'NOVA PAY Зачисление') : 
+                    (tx.tx_type === 'transfer' 
                     ? (isOut ? 'Исходящий' : 'Входящий') 
-                    : (tx.tx_type === 'system_add' ? 'Пополнение баланса' : (tx.tx_type === 'service_payment' ? 'Услуги' : tx.tx_type))
+                    : (tx.tx_type === 'system_add' ? 'Пополнение баланса' : (tx.tx_type === 'service_payment' ? 'Услуги' : tx.tx_type)))
                   }
                 </span>
                 <div suppressHydrationWarning className="text-[10px] text-zinc-500 font-mono mt-1">{new Date(tx.created_at).toLocaleString('ru-RU')}</div>
@@ -173,51 +173,64 @@ export default function DashboardClient({ user }: { user: any }) {
         </div>
       </div>
       
-      {selectedTx && (
+      {selectedTx && (() => {
+        const isNova = selectedTx.note?.includes('NOVA PAY');
+        return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-3xl max-w-sm w-full relative z-50">
-            <button onClick={() => setSelectedTx(null)} className="absolute top-4 right-4 text-zinc-500 hover:text-white text-xl">&times;</button>
-            <h3 className="text-xl font-bold uppercase mb-6 text-yellow-400">Детали транзакции</h3>
+          <div className={`border p-8 rounded-3xl max-w-sm w-full relative z-50 ${isNova ? 'bg-slate-50 border-slate-200' : 'bg-zinc-900 border-zinc-800'}`}>
+            <button onClick={() => setSelectedTx(null)} className={`absolute top-4 right-4 hover:text-white text-xl ${isNova ? 'text-slate-400 hover:text-slate-800' : 'text-zinc-500'}`}>&times;</button>
             
-            <div className="space-y-4 font-mono text-sm break-words">
+            {isNova ? (
+              <div className="mb-6 flex items-center gap-2">
+                <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                  <span className="text-white font-black text-[10px] italic">N</span>
+                </div>
+                <h3 className="text-xl font-bold tracking-tighter text-blue-900 italic">NOVA PAY</h3>
+              </div>
+            ) : (
+              <h3 className="text-xl font-bold uppercase mb-6 text-yellow-400">Детали транзакции</h3>
+            )}
+            
+            <div className={`space-y-4 font-mono text-sm break-words ${isNova ? 'text-slate-800' : 'text-white'}`}>
               <div>
-                <p className="text-[10px] uppercase text-zinc-500 mb-1">ID Транзакции</p>
-                <p className="text-white text-xs">{selectedTx.id}</p>
+                <p className={`text-[10px] uppercase mb-1 ${isNova ? 'text-slate-400' : 'text-zinc-500'}`}>ID Транзакции</p>
+                <p className={`text-xs ${isNova ? 'text-slate-600' : 'text-white'}`}>{selectedTx.id}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase text-zinc-500 mb-1">Дата</p>
-                <p suppressHydrationWarning className="text-white">{new Date(selectedTx.created_at).toLocaleString()}</p>
+                <p className={`text-[10px] uppercase mb-1 ${isNova ? 'text-slate-400' : 'text-zinc-500'}`}>Дата</p>
+                <p suppressHydrationWarning>{new Date(selectedTx.created_at).toLocaleString()}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase text-zinc-500 mb-1">Тип</p>
-                <p className="text-white">{selectedTx.tx_type === 'transfer' ? (selectedTx.from_user_id === user.id ? 'Исходящий перевод' : 'Входящий перевод') : selectedTx.tx_type}</p>
+                <p className={`text-[10px] uppercase mb-1 ${isNova ? 'text-slate-400' : 'text-zinc-500'}`}>Тип</p>
+                <p>{selectedTx.tx_type === 'transfer' ? (selectedTx.from_user_id === user.id ? 'Исходящий перевод' : 'Входящий перевод') : selectedTx.tx_type}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase text-zinc-500 mb-1">Сумма</p>
-                <p className="text-xl font-bold flex items-center gap-1 text-white">
-                  {selectedTx.amount} <img src={SECRET_TEXTURES.diamond} className="w-4 h-4 object-contain" alt="diamond" />
+                <p className={`text-[10px] uppercase mb-1 ${isNova ? 'text-slate-400' : 'text-zinc-500'}`}>Сумма</p>
+                <p className={`text-xl font-bold flex items-center gap-1 ${isNova ? 'text-blue-600' : 'text-white'}`}>
+                  {selectedTx.amount} <img src={SECRET_TEXTURES.diamond} className={`w-4 h-4 object-contain ${isNova ? 'mix-blend-multiply opacity-80' : ''}`} alt="diamond" />
                 </p>
               </div>
               {selectedTx.fee > 0 && (
                 <div>
-                  <p className="text-[10px] uppercase text-zinc-500 mb-1">Комиссия системы</p>
-                  <p className="text-red-400 flex items-center gap-1">{selectedTx.fee} <img src={SECRET_TEXTURES.diamond} className="w-4 h-4 object-contain" alt="diamond"/></p>
+                  <p className={`text-[10px] uppercase mb-1 ${isNova ? 'text-slate-400' : 'text-zinc-500'}`}>Комиссия системы</p>
+                  <p className={`flex items-center gap-1 ${isNova ? 'text-slate-500' : 'text-red-400'}`}>{selectedTx.fee} <img src={SECRET_TEXTURES.diamond} className={`w-4 h-4 object-contain ${isNova ? 'mix-blend-multiply opacity-50' : ''}`} alt="diamond"/></p>
                 </div>
               )}
               {selectedTx.note && (
                 <div>
-                  <p className="text-[10px] uppercase text-zinc-500 mb-1">Комментарий / Примечание</p>
-                  <p className="text-zinc-300 italic">{selectedTx.note}</p>
+                  <p className={`text-[10px] uppercase mb-1 ${isNova ? 'text-slate-400' : 'text-zinc-500'}`}>Комментарий / Примечание</p>
+                  <p className={`italic ${isNova ? 'text-slate-700' : 'text-zinc-300'}`}>{selectedTx.note}</p>
                 </div>
               )}
             </div>
             
-            <button onClick={() => setSelectedTx(null)} className="w-full mt-6 bg-zinc-800 text-white hover:bg-zinc-700 font-bold uppercase px-6 py-3 rounded-xl text-sm transition-colors">
+            <button onClick={() => setSelectedTx(null)} className={`w-full mt-6 font-bold uppercase px-6 py-3 rounded-xl text-sm transition-colors ${isNova ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-zinc-800 text-white hover:bg-zinc-700'}`}>
               Закрыть
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

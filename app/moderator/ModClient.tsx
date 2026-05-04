@@ -1,13 +1,14 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { searchUsers, getPendingRequests, processRequest, adminChangeBalance } from '@/lib/actions';
+import { searchUsers, getPendingRequests, processRequest, adminChangeBalance, confirmWithdraw } from '@/lib/actions';
 import { SECRET_TEXTURES } from '@/lib/textures';
 
-export default function ModClient({ user }: { user: any }) {
+export default function ModClient({ user, stats }: { user: any, stats?: any }) {
   const [targetUser, setTargetUser] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [amount, setAmount] = useState('');
   const [requests, setRequests] = useState<any[]>([]);
+  const [withdrawCodes, setWithdrawCodes] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadRequests();
@@ -46,10 +47,55 @@ export default function ModClient({ user }: { user: any }) {
     } catch(err: any) { alert(err.message); }
   };
 
+  const handleConfirmWithdraw = async (id: string) => {
+    const code = withdrawCodes[id];
+    if (!code || code.length < 4) return alert('Введите четырехзначный код');
+    try {
+      await confirmWithdraw(id, code);
+      alert('Вывод подтвержден!');
+      loadRequests();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
   return (
     <div className="p-8 max-w-[1400px]">
       <h2 className="text-3xl font-bold mb-8 uppercase tracking-tight text-amber-500">Модер-Панель</h2>
       
+      {stats && (
+        <div className="bg-yellow-400/10 rounded-3xl p-6 border border-yellow-400/20 grid grid-cols-2 md:grid-cols-5 gap-4 items-center mb-8">
+          <div>
+            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Казна Сервера</p>
+            <p className="text-xl text-yellow-400 font-mono font-bold flex items-center">
+              {stats.treasuryBalance} <img src={SECRET_TEXTURES.diamond} className="w-4 h-4 ml-1 opacity-80 mix-blend-screen" alt="diamond" />
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Свободные Алмазы</p>
+            <p className="text-xl text-white font-mono font-bold flex items-center">
+              {stats.activeCirculation} <img src={SECRET_TEXTURES.diamond} className="w-4 h-4 ml-1 opacity-50" alt="diamond" />
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Выдано Кредитов</p>
+            <p className="text-xl text-red-500 font-mono font-bold flex items-center">
+              {stats.issuedCredits} <img src={SECRET_TEXTURES.diamond} className="w-4 h-4 ml-1 opacity-50" alt="diamond" />
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Депозиты Игроков</p>
+            <p className="text-xl text-green-500 font-mono font-bold flex items-center">
+              {stats.securedDeposits} <img src={SECRET_TEXTURES.diamond} className="w-4 h-4 ml-1 opacity-50" alt="diamond" />
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Активные Игроки</p>
+            <p className="text-xl text-white font-mono font-bold">{stats.totalPlayers}</p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="bg-zinc-900 border border-amber-500/30 rounded-3xl p-6">
           <h3 className="font-bold uppercase text-xs text-amber-500 tracking-wider mb-6">Управление Балансом Игроков</h3>
@@ -119,13 +165,29 @@ export default function ModClient({ user }: { user: any }) {
                  <div key={r.id} className="bg-black/50 border border-zinc-800 p-4 rounded-xl flex flex-col gap-3">
                    <div>
                      <p className="text-sm font-bold text-white mb-1"><span className="text-amber-500 uppercase mr-2">{r.req_type}</span> от {r.users?.nick}</p>
-                     <p className="text-xs text-zinc-500 font-mono">Тело (на руки): {r.amount} <img src={SECRET_TEXTURES.diamond} className="w-3 h-3 inline-block opacity-70"/></p>
-                     {detailsMarkup}
+                     <p className="text-xs text-zinc-500 font-mono">Сумма: {r.amount} <img src={SECRET_TEXTURES.diamond} className="w-3 h-3 inline-block opacity-70"/></p>
+                     {r.req_type !== 'withdraw' && detailsMarkup}
                    </div>
-                   <div className="flex gap-2">
-                     <button onClick={() => handleProcessRequest(r.id, true)} className="bg-green-500/10 text-green-500 text-xs px-3 py-1.5 rounded disabled:opacity-50 hover:bg-green-500/20">Одобрить</button>
-                     <button onClick={() => handleProcessRequest(r.id, false)} className="bg-red-500/10 text-red-500 text-xs px-3 py-1.5 rounded disabled:opacity-50 hover:bg-red-500/20">Отклонить</button>
-                   </div>
+                   {r.req_type === 'withdraw' ? (
+                     <div className="flex gap-2 items-center w-full mt-2 border-t border-zinc-800 pt-3">
+                       <input
+                         type="text"
+                         placeholder="Код от игрока"
+                         value={withdrawCodes[r.id] || ''}
+                         onChange={(e) => setWithdrawCodes({...withdrawCodes, [r.id]: e.target.value})}
+                         className="flex-1 bg-black border border-zinc-700 px-3 py-1.5 rounded text-xs text-white"
+                       />
+                       <button onClick={() => handleConfirmWithdraw(r.id)} className="bg-amber-500 text-black text-xs px-3 py-1.5 rounded disabled:opacity-50 hover:bg-amber-400">
+                         Выдать
+                       </button>
+                       <button onClick={() => handleProcessRequest(r.id, false)} className="bg-red-500/10 text-red-500 text-xs px-3 py-1.5 rounded hover:bg-red-500/20">Отклонить</button>
+                     </div>
+                   ) : (
+                     <div className="flex gap-2">
+                       <button onClick={() => handleProcessRequest(r.id, true)} className="bg-green-500/10 text-green-500 text-xs px-3 py-1.5 rounded disabled:opacity-50 hover:bg-green-500/20">Одобрить</button>
+                       <button onClick={() => handleProcessRequest(r.id, false)} className="bg-red-500/10 text-red-500 text-xs px-3 py-1.5 rounded disabled:opacity-50 hover:bg-red-500/20">Отклонить</button>
+                     </div>
+                   )}
                  </div>
                  );
                })}

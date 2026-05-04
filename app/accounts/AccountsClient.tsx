@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createNewAccount, executeTransfer, deleteAccount } from '@/lib/actions';
+import { createNewAccount, executeTransfer, deleteAccount, requestWithdraw } from '@/lib/actions';
 import { SECRET_TEXTURES } from '@/lib/textures';
 
 export default function AccountsClient({ user }: { user: any }) {
@@ -12,6 +12,9 @@ export default function AccountsClient({ user }: { user: any }) {
   
   const [transferModal, setTransferModal] = useState<string | null>(null);
   const [transferParams, setTransferParams] = useState({ targetNick: '', targetAccountId: '', transferType: 'player', note: '', amount: '' });
+
+  const [withdrawModal, setWithdrawModal] = useState<string | null>(null);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
 
   const [deleteModal, setDeleteModal] = useState<any>(null); // store account obj
   const [deleteTargetAcc, setDeleteTargetAcc] = useState('');
@@ -86,6 +89,25 @@ export default function AccountsClient({ user }: { user: any }) {
     }
   };
 
+  const handleWithdrawRequest = async () => {
+    if (!withdrawModal || !withdrawAmount) return alert('Укажите сумму');
+    const amt = parseInt(withdrawAmount);
+    if (isNaN(amt) || amt <= 0) return alert('Неверная сумма');
+    
+    setLoading(true);
+    try {
+      const res = await requestWithdraw(withdrawModal, amt);
+      alert('Запрос на вывод создан. Сообщите секретный код модератору в игре: ' + res.code);
+      setWithdrawModal(null);
+      setWithdrawAmount('');
+      router.refresh();
+    } catch(err:any) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteModal) return;
     if (deleteModal.balance > 0 && !deleteTargetAcc) return alert('Выберите счет для перевода средств');
@@ -104,12 +126,38 @@ export default function AccountsClient({ user }: { user: any }) {
     }
   };
 
+  const pendingWithdrawals = user.requestsList?.filter((r:any) => r.req_type === 'withdraw' && r.status === 'pending') || [];
+
   return (
     <div className="p-8 max-w-[1400px]">
       <h2 className="text-3xl font-bold mb-8 uppercase tracking-tight">Ваши Счета</h2>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
         <div className="space-y-6">
+          
+          {pendingWithdrawals.length > 0 && (
+            <div className="bg-yellow-400/10 border border-yellow-400/30 rounded-3xl p-6">
+               <h3 className="text-xs font-bold uppercase text-yellow-400 mb-4">Ожидающие выводы: секретные коды</h3>
+               <div className="space-y-3">
+                 {pendingWithdrawals.map((r:any) => {
+                   let code = '---';
+                   try { code = JSON.parse(r.details).code; } catch(e) {}
+                   return (
+                     <div key={r.id} className="bg-black/50 p-3 rounded-xl border border-yellow-400/20 flex justify-between items-center text-sm">
+                       <div>
+                         <p className="text-white font-mono">{r.amount} <img src={SECRET_TEXTURES.diamond} className="w-3 h-3 inline-block object-contain" alt="diamond"/> вывод</p>
+                         <p className="text-[10px] text-zinc-500 font-mono mt-1">Ожидает выдачи модератором</p>
+                       </div>
+                       <div className="text-center bg-yellow-400 text-black px-3 py-1 rounded font-bold font-mono tracking-widest">
+                         {code}
+                       </div>
+                     </div>
+                   );
+                 })}
+               </div>
+            </div>
+          )}
+
           <div className="bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
              <h3 className="text-sm font-bold uppercase text-zinc-400 mb-6 flex items-center justify-between">
                Активные счета
@@ -129,6 +177,9 @@ export default function AccountsClient({ user }: { user: any }) {
                    <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-black/80">
                       <button onClick={() => setTransferModal(a.id)} className="bg-yellow-400 text-black px-4 py-2 font-bold uppercase tracking-wider text-xs rounded-xl hover:bg-yellow-500 transition-colors">
                         Перевод
+                      </button>
+                      <button onClick={() => setWithdrawModal(a.id)} className="bg-zinc-200 text-black px-4 py-2 font-bold uppercase tracking-wider text-xs rounded-xl hover:bg-white transition-colors">
+                        Вывод
                       </button>
                       {!a.is_primary && (
                         <button onClick={() => setDeleteModal(a)} className="bg-red-500/20 text-red-500 border border-red-500/50 px-4 py-2 font-bold uppercase tracking-wider text-xs rounded-xl hover:bg-red-500 hover:text-white transition-colors">
@@ -263,6 +314,36 @@ export default function AccountsClient({ user }: { user: any }) {
            </div>
         </div>
       </div>
+      {withdrawModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-3xl max-w-md w-full relative z-50">
+            <button onClick={() => setWithdrawModal(null)} className="absolute top-4 right-4 text-zinc-500 hover:text-white text-xl">&times;</button>
+            <h3 className="text-xl font-bold uppercase mb-6 text-white">Вывод алмазов</h3>
+            
+            <p className="text-xs text-zinc-400 mb-6 font-mono">
+              Для получения алмазов в игре, необходимо создать запрос. Средства будут списаны с вашего счета. Во время встречи с модератором на сервере, вы должны сообщить ему сгенерированный секретный код.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Сумма вывода</label>
+                <input
+                  type="number" required min="1" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)}
+                  className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400 font-mono text-sm transition-colors"
+                  placeholder="0"
+                />
+              </div>
+
+              <div className="pt-2">
+                <button disabled={loading} onClick={handleWithdrawRequest} className="w-full bg-white text-black font-bold uppercase px-6 py-3 rounded-xl hover:bg-zinc-200 transition-colors disabled:opacity-50 text-sm">
+                  {loading ? 'Создание...' : 'Создать запрос'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {transferModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-3xl max-w-md w-full relative z-50">

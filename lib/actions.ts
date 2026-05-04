@@ -43,6 +43,9 @@ export async function getSessionUser() {
     const { data: allAccounts } = await supabase.from('accounts').select('*').eq('user_id', user.id).order('created_at', { ascending: true });
     user.accountsList = allAccounts || [];
 
+    const { data: myRequests } = await supabase.from('requests').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
+    user.requestsList = myRequests || [];
+
     return user;
   } catch(e) {
     return null;
@@ -434,6 +437,24 @@ export async function processRequest(requestId: string, approve: boolean) {
          await supabase.from('transactions').insert([{ from_user_id: targetUser.id, amount: req.amount, tx_type: 'transfer', note: 'Создан Срочный Депозит' }]);
       }
     }
+  } else {
+    if (req.req_type === 'withdraw') {
+      try {
+        const parsed = JSON.parse(req.details);
+        if (parsed.accountId) {
+           const { data: acc } = await supabase.from('accounts').select('id, balance').eq('id', parsed.accountId).single();
+           if (acc) {
+             await supabase.from('accounts').update({ balance: acc.balance + req.amount }).eq('id', acc.id);
+             await supabase.from('transactions').insert([{
+               to_user_id: req.user_id,
+               amount: req.amount,
+               tx_type: 'transfer',
+               note: 'Возврат средств (Отклоненный вывод)'
+             }]);
+           }
+        }
+      } catch(e) {}
+    }
   }
   
   await supabase.from('requests').update({ status: approve ? 'approved' : 'rejected' }).eq('id', requestId);
@@ -449,6 +470,82 @@ export async function submitRequest(type: string, amount: number, details: strin
   }]);
   if (error) throw new Error('ОШИБКА: ' + error.message);
   return { success: true };
+}
+
+export async function requestWithdraw(accountId: string, amount: number) {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Не авторизован');
+  if (amount <= 0) throw new Error('Сумма должна быть больше нуля');
+
+  const { data: account } = await supabase.from('accounts')
+    .select('*')
+    .eq('id', accountId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (!account || account.account_type !== 'active') {
+    throw new Error('Ошибочный счет. Вывод доступен только с активных счетов.');
+  }
+  if (account.balance < amount) {
+    throw new Error('Недостаточно средств на счете');
+  }
+
+  // Deduct money immediately
+  const { error: updErr } = await supabase.from('accounts').update({ balance: account.balance - amount }).eq('id', account.id);
+  if (updErr) throw new Error('Ошибка при списании средств: ' + updErr.message);
+
+  // Note withdrawal as a transaction
+  await supabase.from('transactions').insert([{
+    from_user_id: user.id,
+    amount: amount,
+    tx_type: 'transfer',
+    note: 'Вывод алмазов (резерв)'
+  }]);
+
+  // Generate a random 4 digit code
+  const code = Math.floor(1000 + Math.random() * 9000).toString();
+
+  const detailsObj = {
+    accountId,
+    code,
+    note: 'В ожидании выдачи модератором'
+  };
+
+  const { error } = await supabase.from('requests').insert([{
+    user_id: user.id,
+    req_type: 'withdraw',
+    amount: amount,
+    details: JSON.stringify(detailsObj)
+  }]);
+
+  if (error) throw new Error('ОШИБКА создания заявки: ' + error.message);
+  
+  return { success: true, code };
+}
+
+export async function confirmWithdraw(requestId: string, code: string) {
+  const user = await getSessionUser();
+  if (!user || (user.role !== 'admin' && user.role !== 'moderator')) throw new Error('Нет прав');
+
+  const { data: req } = await supabase.from('requests').select('*').eq('id', requestId).single();
+  if (!req || req.status !== 'pending' || req.req_type !== 'withdraw') {
+    throw new Error('Заявка не найдена или уже обработана');
+  }
+
+  try {
+    const parsed = JSON.parse(req.details);
+    if (parsed.code !== code) {
+      throw new Error('Неверный код подтверждения');
+    }
+  } catch(e: any) {
+    throw new Error(e.message || 'Ошибка парсинга деталей');
+  }
+
+  // Code is correct, mark as approved
+  const { error } = await supabase.from('requests').update({ status: 'approved' }).eq('id', requestId);
+  if (error) throw new Error(error.message);
+
+  return { success: true, message: 'Снятие успешно подтверждено' };
 }
 
 export async function searchUsers(query: string) {
@@ -670,4 +767,129 @@ export async function adminAccrueInterest() {
   }
 
   return { success: true, message: `Начислены проценты для ${count} счетов` };
+}
+
+export async function getPublicStats() {
+  const treasury = await getTreasuryAccount();
+  const balance = treasury.account ? treasury.account.balance : 0;
+  
+  // Total in active accounts across system
+  const { data: allActive } = await supabase.from('accounts').select('balance').eq('account_type', 'active');
+  let activeSum = 0;
+  if (allActive) activeSum = allActive.reduce((acc, a) => acc + (a.balance > 0 ? a.balance : 0), 0);
+
+  // Total in term accounts (credits/deposits)
+  const { data: allTerm } = await supabase.from('accounts').select('balance, term_days').eq('account_type', 'term');
+  let creditSum = 0;
+  let depositSum = 0;
+  let freeDepositSum = 0;
+  
+  if (allTerm) {
+    allTerm.forEach(a => {
+      if (a.balance < 0) creditSum += Math.abs(a.balance);
+      else {
+        depositSum += a.balance;
+        // The bank can freely use a portion of locked deposits
+        // Example: 30 days lock gives 70% free. 
+        // Formula: ratio = min( (term_days / 30) * 0.7, 1 )
+        const days = a.term_days || 0;
+        const ratio = Math.min((days / 30) * 0.7, 1);
+        freeDepositSum += Math.floor(a.balance * ratio);
+      }
+    });
+  }
+
+  // Count active players
+  const { count: usersCount } = await supabase.from('users').select('*', { count: 'exact', head: true });
+
+  return {
+    treasuryBalance: balance,
+    activeCirculation: activeSum + freeDepositSum,
+    issuedCredits: creditSum,
+    securedDeposits: depositSum,
+    totalPlayers: usersCount || 0
+  };
+}
+
+export async function executeNovaPay(merchantNick: string, amount: number, itemDesc: string) {
+  try {
+    const user = await getSessionUser();
+    if (!user) return { error: 'Не авторизован' };
+    
+    if (amount <= 0) return { error: 'Сумма должна быть больше нуля' };
+    if (merchantNick.toLowerCase() === user.nick.toLowerCase()) return { error: 'Нельзя оплатить самому себе' };
+
+    const numAmount = Math.floor(amount);
+    
+    // Calculate commission
+    const rate = user.subscription_active ? 0.05 : 0.15;
+    let fee = Math.floor(numAmount * rate);
+    if (!user.subscription_active && fee < 1) fee = 1; // min 1 diamond if not sub
+    
+    const totalCharge = numAmount + fee;
+
+    const sourceAcc = user.accountsList.find((a: any) => a.is_primary && a.account_type === 'active');
+    if (!sourceAcc) return { error: 'Нет активного основного счета для списания' };
+    
+    // Ensure both are treated as numbers
+    const balance = Number(sourceAcc.balance);
+    if (isNaN(balance) || balance < totalCharge) return { error: `Недостаточно средств. Требуется: ${totalCharge} Алмазов, доступно: ${balance || 0}` };
+
+    // Target User
+    const { data: receiver, error: receiverErr } = await supabase.from('users').select('id').ilike('nick', merchantNick).single();
+    if (receiverErr || !receiver) return { error: `Получатель ${merchantNick} не найден в системе (или ошибка БД)` };
+
+    let { data: receiverAcc } = await supabase.from('accounts').select('*').eq('user_id', receiver.id).eq('is_primary', true).maybeSingle();
+    if (!receiverAcc) {
+      const { data: fallbackAcc } = await supabase.from('accounts').select('*').eq('user_id', receiver.id).eq('account_type', 'active').limit(1).maybeSingle();
+      if (fallbackAcc) receiverAcc = fallbackAcc;
+    }
+    
+    if (!receiverAcc) {
+      const { data: newAcc, error } = await supabase.from('accounts').insert([{
+        user_id: receiver.id, name: 'Счет по умолчанию', is_primary: true, account_type: 'active'
+      }]).select('*').single();
+      if (error || !newAcc) return { error: 'Не удалось инициализировать счет получателя' };
+      receiverAcc = newAcc;
+    }
+
+    // Deduct
+    const { error: deductErr } = await supabase.from('accounts').update({ balance: balance - totalCharge }).eq('id', sourceAcc.id);
+    if (deductErr) return { error: `Ошибка при списании: ${deductErr.message}` };
+    
+    // Add
+    const { error: addErr } = await supabase.from('accounts').update({ balance: Number(receiverAcc.balance) + numAmount }).eq('id', receiverAcc.id);
+    if (addErr) {
+      // rollback deduct (best effort without real transactions)
+      await supabase.from('accounts').update({ balance: balance }).eq('id', sourceAcc.id);
+      return { error: `Ошибка при зачислении: ${addErr.message}` };
+    }
+    
+    // Treasury (Fee)
+    if (fee > 0) {
+      try {
+        const treasury = await getTreasuryAccount();
+        if (treasury && treasury.account) {
+          await supabase.from('accounts').update({ balance: Number(treasury.account.balance) + fee }).eq('id', treasury.account.id);
+        }
+      } catch (e) {
+        console.error('Не удалось зачислить налог в казну', e);
+      }
+    }
+
+    const receiptId = `NP-${Math.floor(Date.now() / 1000).toString(16).toUpperCase()}`;
+
+    // Transactions
+    const { error: txErr } = await supabase.from('transactions').insert([{
+      from_user_id: user.id, to_user_id: receiver.id, amount: numAmount, fee, tx_type: 'transfer',
+      note: `NOVA PAY [#${receiptId}]: Оплата пред. "${itemDesc}" продавцу ${merchantNick}`
+    }]);
+    
+    if (txErr) return { error: `Средства переведены, но транзакция не сохранена: ${txErr.message}` };
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('NovaPay Execute Error:', err);
+    return { error: `Внутренняя ошибка обработчика платежа: ${err.message || String(err)}` };
+  }
 }

@@ -2,7 +2,7 @@
 import { useRouter, usePathname } from 'next/navigation';
 import { logoutUser } from '@/lib/actions';
 import Link from 'next/link';
-import { LayoutDashboard, Wallet, Briefcase, MessageSquare, ShieldAlert, ShieldCheck, DatabaseZap } from 'lucide-react';
+import { LayoutDashboard, Wallet, Briefcase, MessageSquare, ShieldAlert, ShieldCheck, DatabaseZap, TrendingUp } from 'lucide-react';
 
 export default function LayoutClient({ user, children }: { user: any; children: React.ReactNode }) {
   const router = useRouter();
@@ -16,9 +16,16 @@ export default function LayoutClient({ user, children }: { user: any; children: 
   const navLinks = [
     { name: 'Главная', href: '/', icon: <LayoutDashboard className="w-4 h-4" /> },
     { name: 'Счета', href: '/accounts', icon: <Wallet className="w-4 h-4" /> },
-    { name: 'Услуги', href: '/services', icon: <Briefcase className="w-4 h-4" /> },
-    { name: 'Чат', href: '/chat', icon: <MessageSquare className="w-4 h-4" /> },
   ];
+
+  if (user?.role === 'admin') {
+    navLinks.push({ name: 'Биржа', href: '/exchange', icon: <TrendingUp className="w-4 h-4" /> });
+  }
+
+  navLinks.push(
+    { name: 'Услуги', href: '/services', icon: <Briefcase className="w-4 h-4" /> },
+    { name: 'Чат', href: '/chat', icon: <MessageSquare className="w-4 h-4" /> }
+  );
 
   if (user?.role === 'admin' || user?.role === 'moderator' || user?.nick?.toLowerCase() === 'abe_aba') {
     navLinks.push({ name: 'Модер-Панель', href: '/moderator', icon: <ShieldAlert className="w-4 h-4" /> });
@@ -26,6 +33,10 @@ export default function LayoutClient({ user, children }: { user: any; children: 
   
   if (user?.role === 'admin' || user?.nick?.toLowerCase() === 'abe_aba') {
     navLinks.push({ name: 'Админ-Панель', href: '/admin', icon: <ShieldCheck className="w-4 h-4" /> });
+  }
+
+  if (pathname.startsWith('/novapay')) {
+    return <div className="min-h-screen bg-slate-50 text-slate-900">{children}</div>;
   }
 
   return (

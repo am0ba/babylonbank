@@ -33,7 +33,7 @@ export default function AdminClient({ user }: { user: any }) {
     <div className="p-8 max-w-[1400px]">
       <h2 className="text-3xl font-bold mb-8 uppercase tracking-tight text-red-500">Админ-Панель</h2>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
         <div className="bg-zinc-900 border border-red-500/30 rounded-3xl p-6 relative">
           <h3 className="font-bold uppercase text-xs text-red-500 tracking-wider mb-6">Назначение Ролей</h3>
           
@@ -75,6 +75,19 @@ export default function AdminClient({ user }: { user: any }) {
               <span>Симуляция времени (Начислить % на вклады)</span>
             </button>
             <p className="text-[10px] uppercase text-zinc-500 font-mono mt-4">Единоразовое начисление текущей % ставки на все срочные счета.</p>
+          </div>
+        </div>
+
+        <div className="bg-zinc-900 border border-blue-500/30 rounded-3xl p-6 relative">
+          <h3 className="font-bold text-xs text-blue-500 mb-6 italic">NOVA PAY Тест</h3>
+          
+          <div className="space-y-4">
+            <a href="/novapay/pay?merchant=Вавилон_Казна&amount=10&item=Тестовая Лицензия&callback=/admin" className="block w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition-colors text-center text-sm shadow-[0_4px_16px_rgba(37,99,235,0.2)]">
+              Оплатить 10 Алмазов (NOVA PAY)
+            </a>
+            <p className="text-[10px] text-zinc-500 mt-4 leading-relaxed">
+              Демонстрационный платеж. Списание будет произведено в пользу казны. Комиссия составит 10% или 5% с подпиской. Проверьте интеграцию платежного интерфейса с авто-комиссией. Попробуйте передать параметры merchant, amount, item в URL для любых нужд.
+            </p>
           </div>
         </div>
       </div>
