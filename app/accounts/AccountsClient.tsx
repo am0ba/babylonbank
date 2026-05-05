@@ -1,8 +1,9 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createNewAccount, executeTransfer, deleteAccount, requestWithdraw } from '@/lib/actions';
 import { SECRET_TEXTURES } from '@/lib/textures';
+import Tooltip from '@/components/Tooltip';
 
 export default function AccountsClient({ user }: { user: any }) {
   const router = useRouter();
@@ -38,12 +39,16 @@ export default function AccountsClient({ user }: { user: any }) {
   const currentRate = calculateRate();
   const expectedProfit = Math.floor((parseInt(termAmount) || 0) * (currentRate / 100));
 
+  const isSubmittingRef = useRef(false);
+
   const handleCreate = async () => {
+    if (isSubmittingRef.current) return;
     if (!accountName) return alert('Введите название счета');
     if (accountType === 'term') {
       if (!termAmount || parseInt(termAmount) <= 0) return alert('Укажите сумму');
       if (!termFromAcc) return alert('Укажите счет списания');
     }
+    isSubmittingRef.current = true;
     setLoading(true);
     try {
       const res = await createNewAccount(
@@ -61,13 +66,16 @@ export default function AccountsClient({ user }: { user: any }) {
       alert(err.message);
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 
   const handleTransfer = async (accountId: string) => {
+    if (isSubmittingRef.current) return;
     if (transferParams.transferType === 'own' && (!transferParams.targetAccountId || !transferParams.amount)) return alert('Заполните все поля');
     if (transferParams.transferType !== 'own' && (!transferParams.targetNick || !transferParams.amount)) return alert('Заполните все поля');
     
+    isSubmittingRef.current = true;
     setLoading(true);
     try {
       const res = await executeTransfer({
@@ -86,14 +94,17 @@ export default function AccountsClient({ user }: { user: any }) {
       alert(err.message);
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 
   const handleWithdrawRequest = async () => {
+    if (isSubmittingRef.current) return;
     if (!withdrawModal || !withdrawAmount) return alert('Укажите сумму');
     const amt = parseInt(withdrawAmount);
     if (isNaN(amt) || amt <= 0) return alert('Неверная сумма');
     
+    isSubmittingRef.current = true;
     setLoading(true);
     try {
       const res = await requestWithdraw(withdrawModal, amt);
@@ -105,13 +116,16 @@ export default function AccountsClient({ user }: { user: any }) {
       alert(err.message);
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 
   const handleDelete = async () => {
+    if (isSubmittingRef.current) return;
     if (!deleteModal) return;
     if (deleteModal.balance > 0 && !deleteTargetAcc) return alert('Выберите счет для перевода средств');
     
+    isSubmittingRef.current = true;
     setLoading(true);
     try {
       const res = await deleteAccount(deleteModal.id, deleteTargetAcc || undefined);
@@ -123,6 +137,7 @@ export default function AccountsClient({ user }: { user: any }) {
       alert(err.message);
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 
@@ -136,19 +151,19 @@ export default function AccountsClient({ user }: { user: any }) {
         <div className="space-y-6">
           
           {pendingWithdrawals.length > 0 && (
-            <div className="bg-yellow-400/10 border border-yellow-400/30 rounded-3xl p-6">
-               <h3 className="text-xs font-bold uppercase text-yellow-400 mb-4">Ожидающие выводы: секретные коды</h3>
+            <div className="bg-yellow-400/10 border border-yellow-400/30 rounded-2xl p-6">
+               <h3 className="text-xs font-bold uppercase text-foreground mb-4">Ожидающие выводы: секретные коды</h3>
                <div className="space-y-3">
                  {pendingWithdrawals.map((r:any) => {
                    let code = '---';
                    try { code = JSON.parse(r.details).code; } catch(e) {}
                    return (
-                     <div key={r.id} className="bg-black/50 p-3 rounded-xl border border-yellow-400/20 flex justify-between items-center text-sm">
+                     <div key={r.id} className="bg-background/50 p-3 rounded-xl border border-yellow-400/20 flex justify-between items-center text-sm">
                        <div>
-                         <p className="text-white font-mono">{r.amount} <img src={SECRET_TEXTURES.diamond} className="w-3 h-3 inline-block object-contain" alt="diamond"/> вывод</p>
-                         <p className="text-[10px] text-zinc-500 font-mono mt-1">Ожидает выдачи модератором</p>
+                         <p className="text-foreground font-sans">{r.amount} <img src={SECRET_TEXTURES.diamond} className="w-3 h-3 inline-block object-contain" alt="diamond"/> вывод</p>
+                         <p className="text-[10px] text-muted-foreground font-sans mt-1">Ожидает выдачи модератором</p>
                        </div>
-                       <div className="text-center bg-yellow-400 text-black px-3 py-1 rounded font-bold font-mono tracking-widest">
+                       <div className="text-center bg-yellow-400 text-black dark:text-white px-3 py-1 rounded font-bold font-sans ">
                          {code}
                        </div>
                      </div>
@@ -158,31 +173,31 @@ export default function AccountsClient({ user }: { user: any }) {
             </div>
           )}
 
-          <div className="bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
-             <h3 className="text-sm font-bold uppercase text-zinc-400 mb-6 flex items-center justify-between">
+          <div className="bg-card text-card-foreground shadow-sm rounded-2xl p-8 border border-border">
+             <h3 className="text-sm font-bold uppercase text-muted-foreground mb-6 flex items-center justify-between">
                Активные счета
-               <span className="text-xs text-zinc-600 font-mono">Доступны для переводов</span>
+               <span className="text-xs text-muted-foreground font-sans">Доступны для переводов</span>
              </h3>
              <div className="space-y-4">
                {activeAccounts.map((a:any) => (
-                 <div key={a.id} className="relative group bg-black/50 border border-zinc-800 p-4 rounded-xl flex flex-col justify-center overflow-hidden">
+                 <div key={a.id} className="relative group bg-background/50 border border-border p-4 rounded-xl flex flex-col justify-center overflow-hidden">
                    <div className="flex justify-between items-center transition-all duration-300 group-hover:opacity-10">
                      <div>
-                       <p className="text-sm font-bold text-white">{a.name} {a.is_primary && <span className="ml-2 text-[10px] bg-yellow-400/20 text-yellow-400 px-2 py-0.5 rounded uppercase">Основной</span>}</p>
-                       <p className="text-[10px] text-zinc-500 font-mono mt-1">{a.id}</p>
+                       <p className="text-sm font-bold text-foreground">{a.name} {a.is_primary && <span className="ml-2 text-[10px] bg-yellow-400/20 text-foreground px-2 py-0.5 rounded uppercase">Основной</span>}</p>
+                       <p className="text-[10px] text-muted-foreground font-sans mt-1">{a.id}</p>
                      </div>
-                     <p className="text-xl font-bold text-yellow-400 flex items-center gap-1">{a.balance} <img src={SECRET_TEXTURES.diamond} className="w-5 h-5 object-contain" alt="diamond" /></p>
+                     <p className="text-xl font-bold text-foreground flex items-center gap-1">{a.balance} <img src={SECRET_TEXTURES.diamond} className="w-5 h-5 object-contain" alt="diamond" /></p>
                    </div>
                    
-                   <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-black/80">
-                      <button onClick={() => setTransferModal(a.id)} className="bg-yellow-400 text-black px-4 py-2 font-bold uppercase tracking-wider text-xs rounded-xl hover:bg-yellow-500 transition-colors">
+                   <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-background/80">
+                      <button onClick={() => setTransferModal(a.id)} className="bg-yellow-400 text-black dark:text-white px-4 py-2 font-bold font-medium text-xs rounded-xl hover:bg-yellow-500 transition-colors">
                         Перевод
                       </button>
-                      <button onClick={() => setWithdrawModal(a.id)} className="bg-zinc-200 text-black px-4 py-2 font-bold uppercase tracking-wider text-xs rounded-xl hover:bg-white transition-colors">
+                      <button onClick={() => setWithdrawModal(a.id)} className="bg-zinc-200 text-black dark:text-white px-4 py-2 font-bold font-medium text-xs rounded-xl hover:bg-card text-card-foreground transition-colors">
                         Вывод
                       </button>
                       {!a.is_primary && (
-                        <button onClick={() => setDeleteModal(a)} className="bg-red-500/20 text-red-500 border border-red-500/50 px-4 py-2 font-bold uppercase tracking-wider text-xs rounded-xl hover:bg-red-500 hover:text-white transition-colors">
+                        <button onClick={() => setDeleteModal(a)} className="bg-red-500/20 text-red-500 border border-red-500/50 px-4 py-2 font-bold font-medium text-xs rounded-xl hover:bg-red-500 hover:text-foreground transition-colors">
                           Закрыть
                         </button>
                       )}
@@ -192,39 +207,39 @@ export default function AccountsClient({ user }: { user: any }) {
              </div>
              
              <div className="mt-6 bg-yellow-400/10 p-4 border border-yellow-400/20 rounded-xl">
-               <h4 className="text-xs font-bold uppercase mb-2 text-yellow-400">Пополнение и Снятие</h4>
-               <p className="text-[11px] text-zinc-400 leading-relaxed font-mono">
+               <h4 className="text-xs font-bold uppercase mb-2 text-foreground">Пополнение и Снятие</h4>
+               <p className="text-[11px] text-muted-foreground leading-relaxed font-sans">
                  Прямое управление наличными алмазами доступно только через официальные банкоматы. 
-                 Ближайший пункт пополнения — <span className="text-white">НА СПАВНЕ</span>.
+                 Ближайший пункт пополнения — <span className="text-foreground">НА СПАВНЕ</span>.
                </p>
              </div>
           </div>
 
           {termAccounts.length > 0 && (
-            <div className="bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
-               <h3 className="text-sm font-bold uppercase text-zinc-400 mb-6 flex items-center justify-between">
+            <div className="bg-card text-card-foreground shadow-sm rounded-2xl p-8 border border-border">
+               <h3 className="text-sm font-bold uppercase text-muted-foreground mb-6 flex items-center justify-between">
                  Срочные Счета
-                 <span className="text-xs text-zinc-600 font-mono">Под % ставки (Капитализация)</span>
+                 <span className="text-xs text-muted-foreground font-sans">Под % ставки (Капитализация)</span>
                </h3>
                <div className="space-y-4">
                  {termAccounts.map((a:any) => (
-                   <div key={a.id} className="relative group bg-black/50 border border-zinc-800 p-4 rounded-xl flex flex-col justify-center overflow-hidden">
+                   <div key={a.id} className="relative group bg-background/50 border border-border p-4 rounded-xl flex flex-col justify-center overflow-hidden">
                       <div className="flex justify-between items-center transition-all duration-300 group-hover:opacity-10">
                         <div>
-                          <p className="text-sm font-bold text-white">{a.name} {!a.can_withdraw && <span className="ml-2 text-[10px] bg-red-400/20 text-red-400 px-2 py-0.5 rounded uppercase">БЕЗ СНЯТИЯ</span>}</p>
-                          <p className="text-[10px] text-zinc-500 font-mono mt-1">{a.id}</p>
+                          <p className="text-sm font-bold text-foreground">{a.name} {!a.can_withdraw && <span className="ml-2 text-[10px] bg-red-400/20 text-red-400 px-2 py-0.5 rounded uppercase">БЕЗ СНЯТИЯ</span>}</p>
+                          <p className="text-[10px] text-muted-foreground font-sans mt-1">{a.id}</p>
                         </div>
                         <p className="text-xl font-bold text-green-500 flex items-center gap-1">{a.balance} <img src={SECRET_TEXTURES.diamond} className="w-5 h-5 object-contain" alt="diamond" /></p>
                       </div>
                       
-                      <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-black/80">
+                      <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-background/80">
                         {a.can_withdraw && (
-                          <button onClick={() => setTransferModal(a.id)} className="bg-yellow-400 text-black px-4 py-2 font-bold uppercase tracking-wider text-xs rounded-xl hover:bg-yellow-500 transition-colors">
+                          <button onClick={() => setTransferModal(a.id)} className="bg-yellow-400 text-black dark:text-white px-4 py-2 font-bold font-medium text-xs rounded-xl hover:bg-yellow-500 transition-colors">
                             Снятие
                           </button>
                         )}
                         {!(a.account_type === 'term' && !a.can_withdraw && a.balance > 0) && (
-                          <button onClick={() => setDeleteModal(a)} className="bg-red-500/20 text-red-500 border border-red-500/50 px-4 py-2 font-bold uppercase tracking-wider text-xs rounded-xl hover:bg-red-500 hover:text-white transition-colors">
+                          <button onClick={() => setDeleteModal(a)} className="bg-red-500/20 text-red-500 border border-red-500/50 px-4 py-2 font-bold font-medium text-xs rounded-xl hover:bg-red-500 hover:text-foreground transition-colors">
                             Закрыть
                           </button>
                         )}
@@ -236,25 +251,28 @@ export default function AccountsClient({ user }: { user: any }) {
           )}
         </div>
 
-        <div className="bg-zinc-900/50 rounded-3xl p-8 border border-zinc-800 flex flex-col justify-center items-center text-center sticky top-8">
+        <div className="bg-card text-card-foreground shadow-sm rounded-2xl p-8 border border-border flex flex-col justify-center items-center text-center sticky top-8">
            <img src={SECRET_TEXTURES.chest} className="w-16 h-16 opacity-50 mb-4" />
-           <h3 className="text-sm font-bold uppercase text-zinc-400 mb-2">Создать новый счет</h3>
-           <p className="text-xs text-zinc-500 max-w-xs font-mono mb-6">Выпущено: {user.accountsList.length}/4 счетов.</p>
+           <h3 className="text-sm font-bold uppercase text-muted-foreground mb-2">Создать новый счет</h3>
+           <p className="text-xs text-muted-foreground max-w-xs font-sans mb-6">Выпущено: {user.accountsList.length}/4 счетов.</p>
            
            <div className="w-full text-left space-y-4">
              <div>
-               <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Название счета</label>
+               <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Название счета</label>
                <input
                  type="text" value={accountName} onChange={e=>setAccountName(e.target.value)}
-                 className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-400 font-mono text-sm"
+                 className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:border-yellow-400 font-sans text-sm"
                  placeholder="Копилка, Мой Вклад и т.д."
                />
              </div>
              <div>
-               <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Тип счета</label>
+               <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">
+                 Тип счета
+                 <Tooltip text="Лут-Счет предназначен для регулярных операций. Срочный Вклад замораживает средства под процент." />
+               </label>
                <select 
                  value={accountType} onChange={e=>setAccountType(e.target.value)}
-                 className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-400 font-mono text-sm"
+                 className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:border-yellow-400 font-sans text-sm"
                >
                  <option value="active">Активный счет (Переводы без комиссии)</option>
                  <option value="term">Срочный вклад (Настройка параметров)</option>
@@ -262,10 +280,10 @@ export default function AccountsClient({ user }: { user: any }) {
              </div>
 
              {accountType === 'term' && (
-               <div className="bg-black/50 p-4 rounded-xl border border-zinc-800 space-y-4">
+               <div className="bg-background/50 p-4 rounded-xl border border-border space-y-4">
                  <div>
-                   <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Срок вклада (Дней)</label>
-                   <select value={termDays} onChange={e=>setTermDays(parseInt(e.target.value))} className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-yellow-400 font-mono text-xs">
+                   <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Срок вклада (Дней)</label>
+                   <select value={termDays} onChange={e=>setTermDays(parseInt(e.target.value))} className="w-full bg-card text-card-foreground shadow-sm border border-border rounded-lg px-3 py-2 text-foreground focus:border-yellow-400 font-sans text-xs">
                      <option value={7}>7 дней</option>
                      <option value={30}>30 дней</option>
                      <option value={90}>90 дней</option>
@@ -273,8 +291,8 @@ export default function AccountsClient({ user }: { user: any }) {
                  </div>
                  
                  <div>
-                   <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Счет списания</label>
-                   <select value={termFromAcc} onChange={e=>setTermFromAcc(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-yellow-400 font-mono text-xs">
+                   <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Счет списания</label>
+                   <select value={termFromAcc} onChange={e=>setTermFromAcc(e.target.value)} className="w-full bg-card text-card-foreground shadow-sm border border-border rounded-lg px-3 py-2 text-foreground focus:border-yellow-400 font-sans text-xs">
                      <option value="">Выберите активный счет...</option>
                      {activeAccounts.map((a:any) => (
                        <option key={a.id} value={a.id}>{a.name} ({a.balance} алмазов)</option>
@@ -283,59 +301,68 @@ export default function AccountsClient({ user }: { user: any }) {
                  </div>
 
                  <div>
-                   <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Сумма вклада</label>
-                   <input type="number" value={termAmount} onChange={e=>setTermAmount(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:border-yellow-400 font-mono text-xs" placeholder="0" />
+                   <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Сумма вклада</label>
+                   <input type="number" value={termAmount} onChange={e=>setTermAmount(e.target.value)} className="w-full bg-card text-card-foreground shadow-sm border border-border rounded-lg px-3 py-2 text-foreground focus:border-yellow-400 font-sans text-xs" placeholder="0" />
                  </div>
 
                  <div className="flex items-center justify-between">
-                   <label className="text-[10px] font-bold uppercase text-zinc-500">Пополнение (+)</label>
+                   <label className="text-[10px] font-bold uppercase text-muted-foreground">
+                     Пополнение (+)
+                     <Tooltip text="Позволяет пополнять срочный счет в течение срока. Снижает общую ставку на 5%." />
+                   </label>
                    <input type="checkbox" checked={canReplenish} onChange={e=>setCanReplenish(e.target.checked)} className="accent-yellow-400" />
                  </div>
                  <div className="flex items-center justify-between">
-                   <label className="text-[10px] font-bold uppercase text-zinc-500">Досрочное снятие</label>
+                   <label className="text-[10px] font-bold uppercase text-muted-foreground">
+                     Досрочное снятие
+                     <Tooltip text="Позволяет выводить средства до окончания срока вклада по запросу. Снижает ставку на 8%." />
+                   </label>
                    <input type="checkbox" checked={canWithdraw} onChange={e=>setCanWithdraw(e.target.checked)} className="accent-yellow-400" />
                  </div>
 
-                 <div className="pt-3 border-t border-zinc-800 flex justify-between items-end">
+                 <div className="pt-3 border-t border-border flex justify-between items-end">
                    <div>
-                     <div className="text-[10px] font-bold uppercase text-zinc-500">Ставка:</div>
+                     <div className="text-[10px] font-bold uppercase text-muted-foreground">Ставка:</div>
                      <div className="text-xl font-bold text-green-500">{currentRate}%</div>
                    </div>
                    <div className="text-right">
-                     <div className="text-[10px] font-bold uppercase text-zinc-500">Ожидаемый Доход:</div>
-                     <div className="text-sm font-bold text-yellow-400 font-mono flex items-center justify-end gap-1">+{expectedProfit} <img src={SECRET_TEXTURES.diamond} className="w-3 h-3 object-contain" alt="diamond"/></div>
+                     <div className="text-[10px] font-bold uppercase text-muted-foreground">Ожидаемый Доход:</div>
+                     <div className="text-sm font-bold text-foreground font-sans flex items-center justify-end gap-1">+{expectedProfit} <img src={SECRET_TEXTURES.diamond} className="w-3 h-3 object-contain" alt="diamond"/></div>
                    </div>
                  </div>
                </div>
              )}
-             <button disabled={loading || user.accountsList.length >= 4} onClick={handleCreate} className="w-full mt-2 bg-yellow-400 text-black hover:bg-yellow-500 font-bold uppercase px-6 py-3 rounded-xl text-xs transition-colors disabled:opacity-50">
+             <button disabled={loading || user.accountsList.length >= 4} onClick={handleCreate} className="w-full mt-2 bg-yellow-400 text-black dark:text-white hover:bg-yellow-500 font-bold uppercase px-6 py-3 rounded-xl text-xs transition-colors disabled:opacity-50">
                {loading ? 'Создание...' : 'Открыть счет'}
              </button>
            </div>
         </div>
       </div>
       {withdrawModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-3xl max-w-md w-full relative z-50">
-            <button onClick={() => setWithdrawModal(null)} className="absolute top-4 right-4 text-zinc-500 hover:text-white text-xl">&times;</button>
-            <h3 className="text-xl font-bold uppercase mb-6 text-white">Вывод алмазов</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="bg-card text-card-foreground shadow-sm border border-border p-8 rounded-2xl max-w-md w-full relative z-50">
+            <button onClick={() => setWithdrawModal(null)} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground text-xl">&times;</button>
+            <h3 className="text-xl font-bold mb-4 text-foreground flex items-center gap-2">
+              Вывод алмазов
+              <Tooltip text="Конвертация цифровых алмазов в реальные. Ваша заявка сформирует секретный код, который нужно отправить в чате банка («Система Вавилон») для получения." />
+            </h3>
             
-            <p className="text-xs text-zinc-400 mb-6 font-mono">
+            <p className="text-xs text-muted-foreground mb-6 font-sans">
               Для получения алмазов в игре, необходимо создать запрос. Средства будут списаны с вашего счета. Во время встречи с модератором на сервере, вы должны сообщить ему сгенерированный секретный код.
             </p>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Сумма вывода</label>
+                <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Сумма вывода</label>
                 <input
                   type="number" required min="1" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)}
-                  className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400 font-mono text-sm transition-colors"
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400 font-sans text-sm transition-colors"
                   placeholder="0"
                 />
               </div>
 
               <div className="pt-2">
-                <button disabled={loading} onClick={handleWithdrawRequest} className="w-full bg-white text-black font-bold uppercase px-6 py-3 rounded-xl hover:bg-zinc-200 transition-colors disabled:opacity-50 text-sm">
+                <button disabled={loading} onClick={handleWithdrawRequest} className="w-full bg-yellow-400 text-black font-bold uppercase px-6 py-3 rounded-xl hover:bg-yellow-500 transition-colors disabled:opacity-50 text-sm">
                   {loading ? 'Создание...' : 'Создать запрос'}
                 </button>
               </div>
@@ -345,17 +372,17 @@ export default function AccountsClient({ user }: { user: any }) {
       )}
 
       {transferModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-3xl max-w-md w-full relative z-50">
-            <button onClick={() => setTransferModal(null)} className="absolute top-4 right-4 text-zinc-500 hover:text-white text-xl">&times;</button>
-            <h3 className="text-xl font-bold uppercase mb-6 text-yellow-400">Сделать перевод</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="bg-card text-card-foreground shadow-sm border border-border p-8 rounded-2xl max-w-md w-full relative z-50">
+            <button onClick={() => setTransferModal(null)} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground text-xl">&times;</button>
+            <h3 className="text-xl font-bold mb-4 text-foreground">Сделать перевод</h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Тип перевода</label>
+                <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Тип перевода</label>
                 <select
                   value={transferParams.transferType} onChange={e=>setTransferParams({...transferParams, transferType: e.target.value})}
-                  className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-400 font-mono text-sm"
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:border-yellow-400 font-sans text-sm"
                 >
                   <option value="player">Другому игроку</option>
                   <option value="own">Между своими счетами</option>
@@ -365,10 +392,10 @@ export default function AccountsClient({ user }: { user: any }) {
               
               {transferParams.transferType === 'own' ? (
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Куда (Счет зачисления)</label>
+                  <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Куда (Счет зачисления)</label>
                   <select
                     value={transferParams.targetAccountId} onChange={e=>setTransferParams({...transferParams, targetAccountId: e.target.value})}
-                    className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-400 font-mono text-sm"
+                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:border-yellow-400 font-sans text-sm"
                   >
                     <option value="">Выберите счет...</option>
                     {allAccounts.map((a:any) => (
@@ -378,33 +405,33 @@ export default function AccountsClient({ user }: { user: any }) {
                 </div>
               ) : (
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Кому (Никнейм)</label>
+                  <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Кому (Никнейм)</label>
                   <input
                     type="text" value={transferParams.targetNick} onChange={e=>setTransferParams({...transferParams, targetNick: e.target.value})}
-                    className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-400 font-mono text-sm"
+                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:border-yellow-400 font-sans text-sm"
                     placeholder="vavilon_user"
                   />
                 </div>
               )}
 
               <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Назначение (Комментарий)</label>
+                <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Назначение (Комментарий)</label>
                 <input
                   type="text" value={transferParams.note} onChange={e=>setTransferParams({...transferParams, note: e.target.value})} maxLength={100}
-                  className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-400 font-mono text-sm"
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:border-yellow-400 font-sans text-sm"
                   placeholder="За аренду, подарок... (опционально)"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Сумма (Алмазы)</label>
+                <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Сумма (Алмазы)</label>
                 <input
                   type="number" min="1" value={transferParams.amount} onChange={e=>setTransferParams({...transferParams, amount: e.target.value})}
-                  className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-yellow-400 font-mono text-sm"
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:border-yellow-400 font-sans text-sm"
                   placeholder="0"
                 />
               </div>
-              <button disabled={loading} onClick={() => handleTransfer(transferModal)} className="w-full mt-2 bg-yellow-400 text-black hover:bg-yellow-500 font-bold uppercase px-6 py-3 rounded-xl text-sm transition-colors disabled:opacity-50">
+              <button disabled={loading} onClick={() => handleTransfer(transferModal)} className="w-full mt-2 bg-yellow-400 text-black dark:text-white hover:bg-yellow-500 font-bold uppercase px-6 py-3 rounded-xl text-sm transition-colors disabled:opacity-50">
                 {loading ? 'Отправка...' : 'Отправить'}
               </button>
             </div>
@@ -413,23 +440,23 @@ export default function AccountsClient({ user }: { user: any }) {
       )}
       
       {deleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-zinc-900 border border-red-500/30 p-8 rounded-3xl max-w-md w-full relative z-50">
-            <button onClick={() => { setDeleteModal(null); setDeleteTargetAcc(''); }} className="absolute top-4 right-4 text-zinc-500 hover:text-white text-xl">&times;</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="bg-card text-card-foreground shadow-sm border border-red-500/30 p-8 rounded-2xl max-w-md w-full relative z-50">
+            <button onClick={() => { setDeleteModal(null); setDeleteTargetAcc(''); }} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground text-xl">&times;</button>
             <h3 className="text-lg font-bold uppercase mb-2 text-red-500">Закрытие счета</h3>
-            <p className="text-xs text-zinc-400 mb-6 font-mono">Вы уверены, что хотите закрыть счет "{deleteModal.name}"?</p>
+            <p className="text-xs text-muted-foreground mb-6 font-sans">Вы уверены, что хотите закрыть счет "{deleteModal.name}"?</p>
             
             {deleteModal.balance > 0 && (
               <div className="mb-6 space-y-4">
                 <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl">
                   <p className="text-xs font-bold text-red-400 mb-1">На счете остались средства: {deleteModal.balance} <img src={SECRET_TEXTURES.diamond} className="w-3 h-3 object-contain inline-block" alt="diamond"/></p>
-                  <p className="text-[10px] text-zinc-400">Перед закрытием переведите остаток на другой ваш счет.</p>
+                  <p className="text-[10px] text-muted-foreground">Перед закрытием переведите остаток на другой ваш счет.</p>
                 </div>
                 <div>
-                   <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Куда перевести остаток?</label>
+                   <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Куда перевести остаток?</label>
                    <select
                      value={deleteTargetAcc} onChange={e=>setDeleteTargetAcc(e.target.value)}
-                     className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-red-400 font-mono text-sm"
+                     className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:border-red-400 font-sans text-sm"
                    >
                      <option value="">Выберите счет...</option>
                      {allAccounts.filter((a:any) => a.id !== deleteModal.id).map((a:any) => (
@@ -440,7 +467,7 @@ export default function AccountsClient({ user }: { user: any }) {
               </div>
             )}
             
-            <button disabled={loading} onClick={handleDelete} className="w-full bg-red-500/20 text-red-500 border border-red-500/50 hover:bg-red-500 hover:text-white font-bold uppercase px-6 py-3 rounded-xl text-sm transition-colors disabled:opacity-50">
+            <button disabled={loading} onClick={handleDelete} className="w-full bg-red-500/20 text-red-500 border border-red-500/50 hover:bg-red-500 hover:text-foreground font-bold uppercase px-6 py-3 rounded-xl text-sm transition-colors disabled:opacity-50">
               {loading ? 'Обработка...' : 'Подтвердить закрытие'}
             </button>
           </div>

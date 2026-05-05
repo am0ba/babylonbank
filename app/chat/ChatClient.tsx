@@ -74,9 +74,37 @@ export default function ChatClient({ user }: { user: any }) {
 
   const handleSend = async () => {
     if (!msg.trim() || activeTab === 'Система Вавилон' || sending) return;
-    setSending(true);
-    const textToSend = msg;
+    const textToSend = msg.trim();
     setMsg('');
+    
+    const tempMsg = {
+      id: 'temp-' + Date.now(),
+      content: textToSend,
+      created_at: new Date().toISOString(),
+      isMine: true,
+      senderNick: 'Вы'
+    };
+
+    if (isTicket) {
+      setTickets(prev => prev.map(t => {
+        if (t.id === activeTicketId) {
+          return { ...t, ticket_messages: [...t.ticket_messages, { ...tempMsg, sender_id: user.id }] };
+        }
+        return t;
+      }));
+    } else {
+      setChats(prev => {
+        const cIdx = prev.findIndex(c => c.nick === activeTab);
+        if (cIdx > -1) {
+          const newChats = [...prev];
+          newChats[cIdx] = { ...newChats[cIdx], messages: [...newChats[cIdx].messages, tempMsg] };
+          return newChats;
+        } else {
+          return [...prev, { nick: activeTab, messages: [tempMsg] }];
+        }
+      });
+    }
+
     try {
       if (isTicket) {
         await sendTicketMessage(activeTicketId, textToSend);
@@ -87,8 +115,6 @@ export default function ChatClient({ user }: { user: any }) {
     } catch (e: any) { 
       console.error(e); 
       setMsg(textToSend);
-    } finally {
-      setSending(false);
     }
   };
 
@@ -137,18 +163,18 @@ export default function ChatClient({ user }: { user: any }) {
       
       <div className="flex-1 flex gap-6 overflow-hidden">
         {/* Sidebar */}
-        <div className="w-64 bg-zinc-900 border border-zinc-800 rounded-3xl p-4 flex flex-col gap-4">
+        <div className="w-64 bg-card text-card-foreground shadow-sm border border-border rounded-2xl p-4 flex flex-col gap-4">
            {/* Add new chat */}
            <div className="relative">
               <input
                 type="text" value={newChatTarget} onChange={e => handleSearch(e.target.value)}
                 placeholder="Новый чат..."
-                className="w-full bg-black border border-zinc-800 rounded-xl px-3 py-2 text-white focus:border-yellow-400 font-mono text-sm"
+                className="w-full bg-background border border-border rounded-xl px-3 py-2 text-foreground focus:border-yellow-400 font-sans text-sm"
               />
               {suggestions.length > 0 && (
-                <ul className="absolute top-full left-0 right-0 bg-zinc-900 border border-zinc-800 rounded-xl mt-1 overflow-hidden z-50">
+                <ul className="absolute top-full left-0 right-0 bg-card text-card-foreground shadow-sm border border-border rounded-xl mt-1 overflow-hidden z-50">
                   {suggestions.map(s => (
-                    <li key={s} onClick={() => startNewChat(s)} className="px-4 py-2 hover:bg-yellow-400 hover:text-black cursor-pointer font-mono text-xs">
+                    <li key={s} onClick={() => startNewChat(s)} className="px-4 py-2 hover:bg-yellow-400 hover:text-black dark:text-white cursor-pointer font-sans text-xs">
                       {s}
                     </li>
                   ))}
@@ -159,7 +185,7 @@ export default function ChatClient({ user }: { user: any }) {
            <div className="flex-1 overflow-y-auto space-y-2">
              <div 
                onClick={() => setActiveTab('Система Вавилон')} 
-               className={`p-3 rounded-xl cursor-pointer text-sm font-bold transition-colors ${activeTab === 'Система Вавилон' ? 'bg-yellow-400 text-black' : 'bg-black text-zinc-400 hover:bg-zinc-800'}`}
+               className={`p-3 rounded-xl cursor-pointer text-sm font-bold transition-colors ${activeTab === 'Система Вавилон' ? 'bg-yellow-400 text-black dark:text-white' : 'bg-background text-muted-foreground hover:bg-muted'}`}
              >
                Система Вавилон
              </div>
@@ -168,7 +194,7 @@ export default function ChatClient({ user }: { user: any }) {
              {!isModerator && (
                <div 
                  onClick={() => setActiveTab('Поддержка')} 
-                 className={`p-3 rounded-xl cursor-pointer text-sm font-bold transition-colors ${activeTab === 'Поддержка' ? 'bg-yellow-400 text-black' : 'bg-black text-zinc-400 hover:bg-zinc-800'}`}
+                 className={`p-3 rounded-xl cursor-pointer text-sm font-bold transition-colors ${activeTab === 'Поддержка' ? 'bg-yellow-400 text-black dark:text-white' : 'bg-background text-muted-foreground hover:bg-muted'}`}
                >
                  Поддержка
                </div>
@@ -176,7 +202,7 @@ export default function ChatClient({ user }: { user: any }) {
 
              {/* Tickets for moderators */}
              {isModerator && tickets.length > 0 && (
-               <div className="mt-4 mb-2 text-xs uppercase text-zinc-500 font-bold px-2">Открытые тикеты</div>
+               <div className="mt-4 mb-2 text-xs uppercase text-muted-foreground font-bold px-2">Открытые тикеты</div>
              )}
              {isModerator && tickets.map(t => {
                const tabId = `Тикет #${t.ticket_number}_${t.id}`;
@@ -184,19 +210,19 @@ export default function ChatClient({ user }: { user: any }) {
                  <div 
                    key={t.id} 
                    onClick={() => setActiveTab(tabId)}
-                   className={`p-3 rounded-xl cursor-pointer text-sm font-bold transition-colors truncate ${activeTab === tabId ? 'bg-yellow-400 text-black' : 'bg-black text-zinc-400 hover:bg-zinc-800'}`}
+                   className={`p-3 rounded-xl cursor-pointer text-sm font-bold transition-colors truncate ${activeTab === tabId ? 'bg-yellow-400 text-black dark:text-white' : 'bg-background text-muted-foreground hover:bg-muted'}`}
                  >
                    #{t.ticket_number} - {t.users?.nick || 'Аноним'}
                  </div>
                );
              })}
 
-             <div className="mt-4 mb-2 text-xs uppercase text-zinc-500 font-bold px-2">Личные чаты</div>
+             <div className="mt-4 mb-2 text-xs uppercase text-muted-foreground font-bold px-2">Личные чаты</div>
              {chats.map(c => (
                <div 
                  key={c.nick} 
                  onClick={() => setActiveTab(c.nick)}
-                 className={`p-3 rounded-xl cursor-pointer text-sm font-bold transition-colors truncate ${activeTab === c.nick ? 'bg-yellow-400 text-black' : 'bg-black text-zinc-400 hover:bg-zinc-800'}`}
+                 className={`p-3 rounded-xl cursor-pointer text-sm font-bold transition-colors truncate ${activeTab === c.nick ? 'bg-yellow-400 text-black dark:text-white' : 'bg-background text-muted-foreground hover:bg-muted'}`}
                >
                  {c.nick}
                </div>
@@ -205,11 +231,11 @@ export default function ChatClient({ user }: { user: any }) {
         </div>
 
         {/* Chat Area */}
-        <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-3xl flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-zinc-800 bg-black/20 flex justify-between items-center">
+        <div className="flex-1 bg-card text-card-foreground shadow-sm border border-border rounded-2xl flex flex-col overflow-hidden">
+          <div className="p-4 border-b border-border bg-background/20 flex justify-between items-center">
             <h3 className="font-bold text-lg">{activeTab.split('_')[0]}</h3>
             {isTicket && isModerator && !isTicketClosed && (
-              <button onClick={handleCloseTicket} className="bg-red-500/20 text-red-500 border border-red-500/50 hover:bg-red-500 hover:text-white px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-colors">
+              <button onClick={handleCloseTicket} className="bg-red-500/20 text-red-500 border border-red-500/50 hover:bg-red-500 hover:text-foreground px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-colors">
                 Закрыть тикет
               </button>
             )}
@@ -217,54 +243,54 @@ export default function ChatClient({ user }: { user: any }) {
           
           <div className="flex-1 p-6 overflow-y-auto space-y-4 flex flex-col">
              {activeTab === 'Система Вавилон' && (
-               <div className="bg-black/50 p-4 rounded-xl border border-zinc-800 self-start max-w-[80%] inline-block">
-                 <p className="text-xs text-yellow-400 font-bold mb-1 uppercase">Система Вавилон</p>
-                 <p className="text-sm text-zinc-300">Добро пожаловать. Задайте Ваш вопрос в заявках, этот чат работает как системные уведомления банка.</p>
+               <div className="bg-background/50 p-4 rounded-xl border border-border self-start max-w-[80%] inline-block">
+                 <p className="text-xs text-foreground font-bold mb-1 uppercase">Система Вавилон</p>
+                 <p className="text-sm text-muted-foreground">Добро пожаловать. Задайте Ваш вопрос в заявках, этот чат работает как системные уведомления банка.</p>
                </div>
              )}
              
              {isTicket && activeMessages.length === 0 && !isModerator && (
-               <div className="bg-black/50 p-4 rounded-xl border border-zinc-800 self-start max-w-[80%] inline-block">
-                 <p className="text-xs text-yellow-400 font-bold mb-1 uppercase">Служба Поддержки</p>
-                 <p className="text-sm text-zinc-300">Напишите ваш вопрос, модераторы увидят его и создадут тикет-обращение.</p>
+               <div className="bg-background/50 p-4 rounded-xl border border-border self-start max-w-[80%] inline-block">
+                 <p className="text-xs text-foreground font-bold mb-1 uppercase">Служба Поддержки</p>
+                 <p className="text-sm text-muted-foreground">Напишите ваш вопрос, модераторы увидят его и создадут тикет-обращение.</p>
                </div>
              )}
 
              {activeMessages.map((m: any, i: number) => (
-               <div key={m.id || i} className={`p-4 rounded-xl max-w-[80%] flex flex-col ${m.isMine ? 'bg-yellow-400/10 border border-yellow-400/20 text-yellow-400 self-end items-end' : 'bg-black border border-zinc-800 text-white self-start items-start'}`}>
+               <div key={m.id || i} className={`p-4 rounded-xl max-w-[80%] flex flex-col ${m.isMine ? 'bg-yellow-400/10 border border-yellow-400/20 text-foreground self-end items-end' : 'bg-background border border-border text-foreground self-start items-start'}`}>
                  {(isTicket || (!m.isMine && !isTicket)) && (
-                   <p className={`text-[10px] uppercase font-bold mb-1 ${m.senderNick === 'Служба Поддержки' ? 'text-yellow-400' : 'opacity-50'}`}>
+                   <p className={`text-[10px] uppercase font-bold mb-1 ${m.senderNick === 'Служба Поддержки' ? 'text-foreground' : 'opacity-50'}`}>
                      {m.senderNick}
                    </p>
                  )}
                  <p className="text-sm">{m.content}</p>
-                 <p suppressHydrationWarning className={`text-[10px] mt-1 font-mono ${m.isMine ? 'text-yellow-400/50' : 'text-zinc-500'}`}>{new Date(m.created_at).toLocaleTimeString()}</p>
+                 <p suppressHydrationWarning className={`text-[10px] mt-1 font-sans ${m.isMine ? 'text-foreground/50' : 'text-muted-foreground'}`}>{new Date(m.created_at).toLocaleTimeString()}</p>
                </div>
              ))}
              <div ref={chatBottomRef} />
           </div>
 
           {(isTicket && isModerator) && (
-            <div className="px-4 py-2 bg-black/40 border-t border-zinc-800 flex gap-2 overflow-x-auto items-center">
-              <span className="text-[10px] uppercase text-zinc-500 font-bold whitespace-nowrap">Горячие фразы:</span>
+            <div className="px-4 py-2 bg-background/40 border-t border-border flex gap-2 overflow-x-auto items-center">
+              <span className="text-[10px] uppercase text-muted-foreground font-bold whitespace-nowrap">Горячие фразы:</span>
               {hotPhrases.map(hp => (
                 <button 
                   key={hp.id} 
                   onClick={() => setMsg(hp.phrase)}
-                  className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1 text-[10px] rounded-lg truncate max-w-[150px] transition-colors flex-shrink-0"
+                  className="bg-muted hover:bg-zinc-700 text-muted-foreground px-3 py-1 text-[10px] rounded-lg truncate max-w-[150px] transition-colors flex-shrink-0"
                   title={hp.phrase}
                 >
                   {hp.phrase}
                 </button>
               ))}
               <form onSubmit={handleAddPhrase} className="flex gap-2 min-w-[200px] ml-auto">
-                <input type="text" value={newPhrase} onChange={e=>setNewPhrase(e.target.value)} placeholder="Добавить фразу..." className="bg-black border border-zinc-800 rounded px-2 py-1 text-[10px] flex-1 text-white"/>
-                <button title="Добавить" type="submit" className="bg-yellow-400 text-black px-2 rounded font-bold hover:bg-yellow-500 text-xs">+</button>
+                <input type="text" value={newPhrase} onChange={e=>setNewPhrase(e.target.value)} placeholder="Добавить фразу..." className="bg-background border border-border rounded px-2 py-1 text-[10px] flex-1 text-foreground"/>
+                <button title="Добавить" type="submit" className="bg-yellow-400 text-black dark:text-white px-2 rounded font-bold hover:bg-yellow-500 text-xs">+</button>
               </form>
             </div>
           )}
 
-          <div className="p-4 border-t border-zinc-800 bg-black/20 flex gap-4">
+          <div className="p-4 border-t border-border bg-background/20 flex gap-4">
             <input 
               type="text" 
               value={msg}
@@ -272,12 +298,12 @@ export default function ChatClient({ user }: { user: any }) {
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder={activeTab === 'Система Вавилон' ? 'Системному боту нельзя писать' : isTicketClosed ? 'Тикет закрыт' : 'Введите сообщение (Enter для отправки)...'}
               disabled={activeTab === 'Система Вавилон' || isTicketClosed || sending}
-              className="flex-1 bg-black border border-zinc-800 text-white rounded-xl px-4 text-sm focus:outline-none focus:border-yellow-400 transition-colors font-mono disabled:opacity-50"
+              className="flex-1 bg-background border border-border text-foreground rounded-xl px-4 text-sm focus:outline-none focus:border-yellow-400 transition-colors font-sans disabled:opacity-50"
             />
             <button 
               onClick={handleSend}
               disabled={activeTab === 'Система Вавилон' || isTicketClosed || sending} 
-              className="bg-yellow-400 text-black px-6 font-bold uppercase rounded-xl hover:bg-yellow-500 transition-colors text-sm tracking-wider disabled:opacity-50"
+              className="bg-yellow-400 text-black dark:text-white px-6 font-bold uppercase rounded-xl hover:bg-yellow-500 transition-colors text-sm tracking-wider disabled:opacity-50"
             >
               Отправить
             </button>

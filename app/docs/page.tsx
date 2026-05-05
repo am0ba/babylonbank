@@ -1,7 +1,7 @@
 export default function DocsPage() {
   return (
-    <div className="min-h-screen bg-zinc-100 text-black p-8 font-serif">
-      <div className="max-w-4xl mx-auto bg-white p-12 shadow-2xl space-y-12">
+    <div className="min-h-screen bg-zinc-100 text-black dark:text-white p-8 font-serif">
+      <div className="max-w-4xl mx-auto bg-card text-card-foreground p-12 shadow-2xl space-y-12">
         <div className="text-center border-b-2 border-black pb-8 mb-12">
           <h1 className="text-3xl font-bold uppercase mb-4">Генеральный Кодекс Системы "Вавилон"</h1>
           <h2 className="text-xl font-bold uppercase">Юридический регламент и стандарты операций</h2>
@@ -82,7 +82,7 @@ export default function DocsPage() {
           <p><strong>Статья 2. Глобальная блокировка:</strong> Любое нарушение в одном секторе ведет к ограничению прав Игрока во всей Системе.</p>
         </section>
         
-        <div className="pt-12 text-center text-sm font-bold text-zinc-500">
+        <div className="pt-12 text-center text-sm font-bold text-muted-foreground">
           СИСТЕМА ВАВИЛОН • ВЕРХОВНОЕ УПРАВЛЕНИЕ • КОНТРОЛЬ АКТИВОВ
         </div>
       </div>

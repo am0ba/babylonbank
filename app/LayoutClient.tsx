@@ -3,6 +3,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { logoutUser } from '@/lib/actions';
 import Link from 'next/link';
 import { LayoutDashboard, Wallet, Briefcase, MessageSquare, ShieldAlert, ShieldCheck, DatabaseZap, TrendingUp } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export default function LayoutClient({ user, children }: { user: any; children: React.ReactNode }) {
   const router = useRouter();
@@ -12,6 +13,7 @@ export default function LayoutClient({ user, children }: { user: any; children: 
     await logoutUser();
     router.refresh(); 
   };
+
 
   const navLinks = [
     { name: 'Главная', href: '/', icon: <LayoutDashboard className="w-4 h-4" /> },
@@ -33,30 +35,33 @@ export default function LayoutClient({ user, children }: { user: any; children: 
   }
 
   if (pathname.startsWith('/novapay')) {
-    return <div className="min-h-screen bg-slate-50 text-slate-900">{children}</div>;
+    return <div className="min-h-screen bg-background text-foreground">{children}</div>;
   }
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen">
       {/* Sidebar Navigation */}
-      <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-zinc-800 flex flex-col p-6 shrink-0 relative bg-black z-10">
-        <div className="flex items-center gap-3 mb-8 md:mb-12">
-          <div className="w-10 h-10 bg-yellow-400 rounded-lg flex items-center justify-center text-black font-bold text-xl leading-none">B</div>
-          <h1 className="text-xl font-bold tracking-tight uppercase">Вавилон</h1>
+      <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-border flex flex-col p-6 shrink-0 relative bg-background z-10">
+        <div className="flex items-center gap-3 mb-8 md:mb-12 justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-yellow-400 rounded-lg flex items-center justify-center text-black dark:text-white font-bold text-xl leading-none">B</div>
+            <h1 className="text-xl font-bold tracking-tight uppercase">Вавилон</h1>
+          </div>
+          <ThemeToggle />
         </div>
         
         <nav className="space-y-2 flex-1">
           {navLinks.map((link) => {
             const isActive = pathname === link.href;
             return (
-              <Link key={link.href} href={link.href} className={`px-4 py-3 rounded-xl font-bold flex items-center gap-3 transition-colors text-sm ${isActive ? 'bg-yellow-400 text-black shadow-lg shadow-yellow-400/10' : 'text-zinc-500 hover:text-white hover:bg-zinc-900/50'}`}>
+              <Link key={link.href} href={link.href} className={`px-4 py-3 rounded-xl font-bold flex items-center gap-3 transition-colors text-sm ${isActive ? 'bg-yellow-400 text-black dark:text-white shadow-lg shadow-yellow-400/10' : 'text-muted-foreground hover:text-foreground hover:bg-card text-card-foreground shadow-sm'}`}>
                 {link.icon} {link.name}
               </Link>
             );
           })}
         </nav>
 
-        <button onClick={handleLogout} className="mt-8 text-zinc-500 hover:text-white uppercase text-xs font-bold w-full text-left transition-colors">
+        <button onClick={handleLogout} className="mt-8 text-muted-foreground hover:text-foreground uppercase text-xs font-bold w-full text-left transition-colors">
           Выйти из системы
         </button>
       </aside>
@@ -67,12 +72,12 @@ export default function LayoutClient({ user, children }: { user: any; children: 
           <div className="bg-amber-500/10 border-b border-amber-500/20 px-8 py-4 flex items-start gap-4">
             <DatabaseZap className="text-amber-500 shrink-0 mt-1" />
             <div>
-              <p className="text-sm font-bold text-amber-500 uppercase tracking-wider">Супабейс временно отключен (Режим Быстрого Входа)</p>
-              <p className="text-xs text-zinc-400 mt-1 font-mono max-w-3xl">
+              <p className="text-sm font-bold text-amber-500 font-medium">Супабейс временно отключен (Режим Быстрого Входа)</p>
+              <p className="text-xs text-muted-foreground mt-1 font-sans max-w-3xl">
                 Вы вошли как мок-администратор, потому что база данныхSupabase не настроена корректно. Вы можете просматривать интерфейс.<br/><br/>
                 <b>Как починить:</b> перейдите в SQL Editor в Supabase и выполните этот код, чтобы создать правильную структуру:
               </p>
-              <pre className="mt-4 bg-black/50 p-4 rounded-xl border border-amber-500/30 text-[10px] text-amber-500/70 overflow-x-auto font-mono">
+              <pre className="mt-4 bg-background/50 p-4 rounded-xl border border-amber-500/30 text-[10px] text-amber-500/70 overflow-x-auto font-sans">
 {`-- 1. Таблица пользователей
 CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

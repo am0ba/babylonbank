@@ -78,7 +78,7 @@ export default function SignaturePad({ onSigned }: { onSigned: (signed: boolean)
         ref={canvasRef}
         width={192}
         height={64}
-        className="cursor-crosshair w-full h-16 bg-white/50 touch-none"
+        className="cursor-crosshair w-full h-16 bg-card text-card-foreground/50 touch-none"
         onMouseDown={startDrawing}
         onMouseMove={draw}
         onMouseUp={stopDrawing}
@@ -97,7 +97,7 @@ export default function SignaturePad({ onSigned }: { onSigned: (signed: boolean)
         </button>
       )}
       {!hasDrawn && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30 text-xs font-mono">
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30 text-xs font-sans">
           Распишитесь
         </div>
       )}

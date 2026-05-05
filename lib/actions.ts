@@ -16,20 +16,8 @@ export async function getSessionUser() {
     // Check subscription status
     let isSubscribed = user.subscription_active;
     if (isSubscribed && user.subscription_expires_at && new Date(user.subscription_expires_at) < new Date()) {
-       // Autocharge subscription if active account has balance
-       const { data: mainAccount } = await supabase.from('accounts').select('*').eq('user_id', user.id).eq('account_type', 'active').eq('is_primary', true).single();
-       if (mainAccount && mainAccount.balance >= 100) {
-          // Charge 100 diamonds for subscription renewal
-          await supabase.from('accounts').update({ balance: mainAccount.balance - 100 }).eq('id', mainAccount.id);
-          const nextDate = new Date();
-          nextDate.setMonth(nextDate.getMonth() + 1);
-          await supabase.from('users').update({ subscription_expires_at: nextDate.toISOString() }).eq('id', user.id);
-          await supabase.from('transactions').insert([{ from_user_id: user.id, amount: 100, tx_type: 'subscription', note: 'Автоматическое продление (1 мес)' }]);
-       } else {
-          // Cancel subscription
-          await supabase.from('users').update({ subscription_active: false }).eq('id', user.id);
-          isSubscribed = false;
-       }
+       await supabase.from('users').update({ subscription_active: false }).eq('id', user.id);
+       isSubscribed = false;
     }
     user.subscription_active = isSubscribed;
     
@@ -38,7 +26,11 @@ export async function getSessionUser() {
     user.loot_balance = accounts?.filter(a => a.account_type === 'active').reduce((acc, curr) => acc + curr.balance, 0) || 0;
     user.term_balance = accounts?.filter(a => a.account_type === 'term').reduce((acc, curr) => acc + curr.balance, 0) || 0;
     
-    const { data: transactions } = await supabase.from('transactions').select('*').or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`).order('created_at', { ascending: false });
+    const { data: transactions } = await supabase.from('transactions').select(`
+      *,
+      from_user:users!from_user_id(nick),
+      to_user:users!to_user_id(nick)
+    `).or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`).order('created_at', { ascending: false });
     user.transactions = transactions || [];
 
     const { data: allAccounts } = await supabase.from('accounts').select('*').eq('user_id', user.id).order('created_at', { ascending: true });

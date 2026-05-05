@@ -1,12 +1,15 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { SECRET_TEXTURES } from '@/lib/textures';
 import { executeTransfer, executeLiquidate, submitRequest, searchUsers, subscribe, createNewAccount } from '@/lib/actions';
+import Tooltip from '@/components/Tooltip';
 import SignaturePad from '@/app/components/SignaturePad';
 
 export default function ServicesClient({ user }: { user: any }) {
   const router = useRouter();
+  const isSubmittingRef = useRef(false);
+
   const [target, setTarget] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [amount, setAmount] = useState('');
@@ -70,9 +73,11 @@ export default function ServicesClient({ user }: { user: any }) {
 
   const confirmService = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
     const val = Number(formParams.amount);
     if (!val || isNaN(val) || val <= 0) return setMsg({text: 'Укажите корректную сумму', type: 'error'});
     
+    isSubmittingRef.current = true;
     setLoading(true);
     try {
       if (activeForm === 'deposit') {
@@ -100,10 +105,12 @@ export default function ServicesClient({ user }: { user: any }) {
       router.refresh();
     } catch(err: any) {
       setMsg({text: err.message, type: 'error'});
-    } finally { setLoading(false); }
+    } finally { setLoading(false); isSubmittingRef.current = false; }
   };
 
   const confirmSubscribe = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setLoading(true);
     try {
       const res = await subscribe();
@@ -114,6 +121,7 @@ export default function ServicesClient({ user }: { user: any }) {
       setMsg({text: err.message, type: 'error'});
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 
@@ -132,6 +140,8 @@ export default function ServicesClient({ user }: { user: any }) {
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setLoading(true); setMsg({ text: '', type: '' });
     try {
       const res = await executeTransfer({
@@ -146,7 +156,7 @@ export default function ServicesClient({ user }: { user: any }) {
       setTarget(''); setAmount(''); setNote(''); router.refresh();
     } catch(err: any) {
       setMsg({ text: err.message, type: 'error' });
-    } finally { setLoading(false); }
+    } finally { setLoading(false); isSubmittingRef.current = false; }
   };
 
   const [liquidationStep, setLiquidationStep] = useState(0);
@@ -156,6 +166,8 @@ export default function ServicesClient({ user }: { user: any }) {
       setLiquidationStep(1);
       return;
     }
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setLoading(true);
     try {
       const res = await executeLiquidate();
@@ -165,7 +177,7 @@ export default function ServicesClient({ user }: { user: any }) {
     } catch(err: any) { 
       setMsg({ text: err.message, type: 'error' });
       setLiquidationStep(0);
-    } finally { setLoading(false); }
+    } finally { setLoading(false); isSubmittingRef.current = false; }
   };
 
   return (
@@ -180,14 +192,14 @@ export default function ServicesClient({ user }: { user: any }) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Transfer Form */}
-        <div className="bg-zinc-900/50 rounded-3xl p-6 border border-zinc-800 relative z-10">
-           <h4 className="font-bold uppercase text-xs text-zinc-400 tracking-wider mb-6">Денежный перевод</h4>
+        <div className="bg-card text-card-foreground shadow-sm rounded-2xl p-6 border border-border relative z-10">
+           <h4 className="font-bold uppercase text-xs text-muted-foreground tracking-wider mb-6">Денежный перевод</h4>
             <form onSubmit={handleTransfer} className="space-y-4 relative">
               <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Тип перевода</label>
+                <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Тип перевода</label>
                 <select
                   value={transferType} onChange={e => setTransferType(e.target.value as 'player' | 'own' | 'service')}
-                  className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400 font-mono text-sm transition-colors"
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400 font-sans text-sm transition-colors"
                 >
                   <option value="player">Другому игроку</option>
                   <option value="own">Между своими счетами</option>
@@ -196,10 +208,10 @@ export default function ServicesClient({ user }: { user: any }) {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Откуда (Счет списания)</label>
+                <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Откуда (Счет списания)</label>
                 <select
                   value={fromAccountId} onChange={e => setFromAccountId(e.target.value)}
-                  className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400 font-mono text-sm transition-colors"
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400 font-sans text-sm transition-colors"
                 >
                   <option value="">По умолчанию (Основной счет)</option>
                   {activeAccounts.map((a:any) => (
@@ -210,10 +222,10 @@ export default function ServicesClient({ user }: { user: any }) {
 
               {transferType === 'own' ? (
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Куда (Счет зачисления)</label>
+                  <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Куда (Счет зачисления)</label>
                   <select
                     value={targetAccountId} onChange={e => setTargetAccountId(e.target.value)} required
-                    className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400 font-mono text-sm transition-colors"
+                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400 font-sans text-sm transition-colors"
                   >
                     <option value="">Выберите счет...</option>
                     {allAccounts.map((a:any) => (
@@ -223,72 +235,72 @@ export default function ServicesClient({ user }: { user: any }) {
                 </div>
               ) : (
                 <div className="relative">
-                  <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Никнейм получателя</label>
+                  <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Никнейм получателя</label>
                   <input
                     type="text" required value={target} onChange={e => setTarget(e.target.value)}
-                    className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400 font-mono text-sm transition-colors"
+                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400 font-sans text-sm transition-colors"
                     placeholder="vavilon_user"
                     autoComplete="off"
                   />
                   {suggestions.length > 0 && (
-                    <ul className="absolute top-full left-0 right-0 bg-zinc-900 border border-zinc-800 rounded-xl mt-1 overflow-hidden z-50">
+                    <ul className="absolute top-full left-0 right-0 bg-card text-card-foreground shadow-sm border border-border rounded-xl mt-1 overflow-hidden z-50">
                       {suggestions.map(s => (
-                        <li key={s} onClick={() => {setTarget(s); setSuggestions([]);}} className="px-4 py-2 hover:bg-yellow-400 hover:text-black cursor-pointer font-mono text-sm transition-colors">
+                        <li key={s} onClick={() => {setTarget(s); setSuggestions([]);}} className="px-4 py-2 hover:bg-yellow-400 hover:text-black dark:text-white cursor-pointer font-sans text-sm transition-colors">
                           {s}
                         </li>
                       ))}
                     </ul>
                   )}
                   {target.length > 0 && suggestions.length === 0 && (
-                    <div className="absolute top-full left-0 right-0 bg-zinc-900 border border-zinc-800 rounded-xl mt-1 px-4 py-2 text-xs text-zinc-500 font-mono z-50">Поиск пуст</div>
+                    <div className="absolute top-full left-0 right-0 bg-card text-card-foreground shadow-sm border border-border rounded-xl mt-1 px-4 py-2 text-xs text-muted-foreground font-sans z-50">Поиск пуст</div>
                   )}
                 </div>
               )}
 
               <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Назначение перевода / Комментарий (Опционально)</label>
+                <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Назначение перевода / Комментарий (Опционально)</label>
                 <input
                   type="text" value={note} onChange={e => setNote(e.target.value)} maxLength={100}
-                  className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400 font-mono text-sm transition-colors"
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400 font-sans text-sm transition-colors"
                   placeholder="За аренду, подарок, и т.д."
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1.5">Сумма</label>
+                <label className="block text-[10px] font-bold uppercase text-muted-foreground mb-1.5">Сумма</label>
                 <input
                   type="number" required min="1" value={amount} onChange={e => setAmount(e.target.value)}
-                  className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400 font-mono text-sm transition-colors"
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400 font-sans text-sm transition-colors"
                   placeholder="0"
                 />
               </div>
-              <button type="submit" disabled={loading} className="w-full bg-yellow-400 text-black font-bold uppercase tracking-wider py-3.5 rounded-xl hover:bg-yellow-500 transition-colors disabled:opacity-50 text-sm mt-2">
+              <button type="submit" disabled={loading} className="w-full bg-yellow-400 text-black dark:text-white font-bold font-medium py-3.5 rounded-xl hover:bg-yellow-500 transition-colors disabled:opacity-50 text-sm mt-2">
                 ПОДПИСАТЬ И ОТПРАВИТЬ
               </button>
            </form>
         </div>
 
         {/* Requests */}
-        <div className="bg-zinc-900/50 rounded-3xl p-6 border border-zinc-800 flex flex-col space-y-4">
-           <h4 className="font-bold uppercase text-xs text-zinc-400 tracking-wider mb-2">Услуги банка</h4>
-           <button onClick={() => handleServiceClick('credit')} className="w-full bg-black border border-zinc-800 hover:border-yellow-400 text-white font-bold uppercase tracking-wider py-3.5 rounded-xl transition-colors text-sm text-left px-4 flex justify-between items-center">
-             <span>Запросить Кредит</span> <span className="text-xs text-zinc-500 font-mono">Требуется одобрение</span>
+        <div className="bg-card text-card-foreground shadow-sm rounded-2xl p-6 border border-border flex flex-col space-y-4">
+           <h4 className="font-bold uppercase text-xs text-muted-foreground tracking-wider mb-2">Услуги банка</h4>
+           <button onClick={() => handleServiceClick('credit')} className="w-full bg-background border border-border hover:border-yellow-400 text-foreground font-bold font-medium py-3.5 rounded-xl transition-colors text-sm text-left px-4 flex justify-between items-center">
+             <span className="flex-1 flex items-center">Запросить Кредит <Tooltip text="Подача заявки на получение кредита. Укажите сумму и срок, модератор рассмотрит запрос." /></span> <span className="text-xs text-muted-foreground font-sans text-right w-[110px] sm:w-auto">Одобрение</span>
            </button>
-           <button onClick={() => handleServiceClick('deposit')} className="w-full bg-black border border-zinc-800 hover:border-yellow-400 text-white font-bold uppercase tracking-wider py-3.5 rounded-xl transition-colors text-sm text-left px-4 flex justify-between items-center">
-             <span>Срочный Депозит</span> <span className="text-xs text-zinc-500 font-mono">Вклад под %</span>
+           <button onClick={() => handleServiceClick('deposit')} className="w-full bg-background border border-border hover:border-yellow-400 text-foreground font-bold font-medium py-3.5 rounded-xl transition-colors text-sm text-left px-4 flex justify-between items-center">
+             <span className="flex-1 flex items-center">Срочный Депозит <Tooltip text="Открытие вклада под процент на определенный срок." /></span> <span className="text-xs text-muted-foreground font-sans text-right w-[110px] sm:w-auto">Вклад под %</span>
            </button>
-           <button onClick={handleSubscribeClick} className="w-full bg-black border border-zinc-800 hover:border-yellow-400 text-white font-bold uppercase tracking-wider py-3.5 rounded-xl transition-colors text-sm text-left px-4 flex justify-between items-center group">
-             <span>Оформить Подписку (PDA)</span> <span className="text-xs group-hover:text-yellow-400 text-zinc-500 font-mono flex items-center gap-1 transition-colors">5 <img src={SECRET_TEXTURES.diamond} className="w-3 h-3 object-contain" alt="diamond"/> / Неделя</span>
+           <button onClick={handleSubscribeClick} className="w-full bg-background border border-border hover:border-yellow-400 text-foreground font-bold font-medium py-3.5 rounded-xl transition-colors text-sm text-left px-4 flex justify-between items-center group">
+             <span className="flex-1 flex items-center">Оформить Подписку (PDA) <Tooltip text="Подписка на премиум статусы. Дает пониженную комиссию на бирже и другие бонусы." /></span> <span className="text-xs group-hover:text-foreground text-muted-foreground font-sans flex items-center justify-end w-[110px] sm:w-auto gap-1 transition-colors">5 <img src={SECRET_TEXTURES.diamond} className="w-3 h-3 object-contain" alt="diamond"/> / Нед</span>
            </button>
            
-           <button onClick={() => setShowOther(!showOther)} className={`w-full bg-black border hover:border-yellow-400 text-white font-bold uppercase tracking-wider py-3.5 rounded-xl transition-colors text-sm text-left px-4 flex justify-between items-center ${showOther ? 'border-yellow-400' : 'border-zinc-800'}`}>
-             <span>Прочее</span> <span className="text-xs text-zinc-500 font-mono">{showOther ? 'Скрыть' : 'Договора, Удаление'}</span>
+           <button onClick={() => setShowOther(!showOther)} className={`w-full bg-background border hover:border-yellow-400 text-foreground font-bold font-medium py-3.5 rounded-xl transition-colors text-sm text-left px-4 flex justify-between items-center ${showOther ? 'border-yellow-400' : 'border-border'}`}>
+             <span>Прочее</span> <span className="text-xs text-muted-foreground font-sans text-right">{showOther ? 'Скрыть' : 'Договора, Ликвидация'}</span>
            </button>
 
            {showOther && (
-             <div className="pl-4 border-l border-zinc-800 ml-2 space-y-4 pt-2">
-               <button onClick={() => window.open('/docs', '_blank')} className="w-full bg-black border border-zinc-800 hover:border-yellow-400 text-white font-bold uppercase tracking-wider py-3.5 rounded-xl transition-colors text-sm text-left px-4 flex justify-between items-center">
-                 <span>Договора и документация банка</span> <span className="text-xs text-zinc-500 font-mono">PDF</span>
+             <div className="pl-4 border-l border-border ml-2 space-y-4 pt-2">
+               <button onClick={() => window.open('/docs', '_blank')} className="w-full bg-background border border-border hover:border-yellow-400 text-foreground font-bold font-medium py-3.5 rounded-xl transition-colors text-sm text-left px-4 flex justify-between items-center">
+                 <span>Договора и документация банка</span> <span className="text-xs text-muted-foreground font-sans">PDF</span>
                </button>
                
                <div>
@@ -296,14 +308,14 @@ export default function ServicesClient({ user }: { user: any }) {
                    <div className="mb-4 p-4 border border-red-500/50 bg-red-500/10 rounded-xl">
                      <p className="text-red-400 text-sm font-bold mb-2">Подтверждение: Вы уверены, что хотите закрыть все счета? Будет удержан штраф 30%.</p>
                      <div className="flex gap-2">
-                       <button onClick={handleLiquidate} className="bg-red-500 text-white px-3 py-1.5 text-xs font-bold uppercase rounded hover:bg-red-600 transition-colors">Да, ликвидировать</button>
-                       <button onClick={() => setLiquidationStep(0)} className="bg-zinc-800 text-white px-3 py-1.5 text-xs font-bold uppercase rounded hover:bg-zinc-700 transition-colors">Отмена</button>
+                       <button onClick={handleLiquidate} className="bg-red-500 text-foreground px-3 py-1.5 text-xs font-bold uppercase rounded hover:bg-red-600 transition-colors">Да, ликвидировать</button>
+                       <button onClick={() => setLiquidationStep(0)} className="bg-muted text-foreground px-3 py-1.5 text-xs font-bold uppercase rounded hover:bg-zinc-700 transition-colors">Отмена</button>
                      </div>
                    </div>
                  )}
                  {liquidationStep !== 1 && (
-                   <button onClick={() => setLiquidationStep(1)} disabled={loading} className="w-full bg-black border border-zinc-800 hover:border-red-500 border-opacity-50 hover:bg-red-500/10 text-zinc-600 hover:text-red-500 font-bold uppercase tracking-wider py-3.5 rounded-xl transition-colors text-sm text-left px-4 flex justify-between items-center disabled:opacity-50">
-                     <span>Удаление аккаунта (Ликвидация)</span> <span className="text-xs font-mono">-30% штраф</span>
+                   <button onClick={() => setLiquidationStep(1)} disabled={loading} className="w-full bg-background border border-border hover:border-red-500 border-opacity-50 hover:bg-red-500/10 text-muted-foreground hover:text-red-500 font-bold font-medium py-3.5 rounded-xl transition-colors text-sm text-left px-4 flex justify-between items-center disabled:opacity-50">
+                     <span className="flex items-center">Ликвидация (Удаление) <Tooltip text="Закрытие всех счетов, потеря 30% штрафов, возврат остатка алмазами на руки." /></span> <span className="text-xs font-sans">-30% штраф</span>
                    </button>
                  )}
                </div>
@@ -313,13 +325,13 @@ export default function ServicesClient({ user }: { user: any }) {
       </div>
 
       {showContract && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-white text-black max-w-2xl w-full max-h-[85vh] overflow-y-auto rounded p-4 sm:p-6 relative font-serif shadow-2xl">
-            <button onClick={() => setShowContract(false)} className="absolute top-4 right-4 text-black text-xl hover:text-red-500 font-sans">&times;</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="bg-card text-card-foreground text-black dark:text-white max-w-2xl w-full max-h-[85vh] overflow-y-auto rounded p-4 sm:p-6 relative font-serif shadow-2xl">
+            <button onClick={() => setShowContract(false)} className="absolute top-4 right-4 text-black dark:text-white text-xl hover:text-red-500 font-sans">&times;</button>
             <div className="border border-blue-900 p-4 sm:p-6 relative">
                <div className="text-center mb-4 border-b pb-2">
                  <h2 className="text-2xl sm:text-3xl font-bold text-blue-900 uppercase">СИСТЕМА ВАВИЛОН</h2>
-                 <p className="text-sm uppercase tracking-widest mt-2 font-bold text-blue-900">Верховное Управление • Департамент Подписок</p>
+                 <p className="text-sm uppercase  mt-2 font-bold text-blue-900">Верховное Управление • Департамент Подписок</p>
                </div>
                
                <h3 className="text-xl font-bold text-center underline uppercase mb-4">
@@ -331,8 +343,8 @@ export default function ServicesClient({ user }: { user: any }) {
                </p>
                
                <div className="mb-4 space-y-2 font-bold uppercase">
-                 <p className="border-b border-black inline-block min-w-[300px]">НИКНЕЙМ ИГРОКА: <span className="underline decoration-1 pl-2 font-mono text-blue-900">{user.nick}</span></p><br/>
-                 <p className="border-b border-black inline-block min-w-[300px]">ДАТА ЗАКЛЮЧЕНИЯ: <span suppressHydrationWarning className="underline decoration-1 pl-2 font-mono text-blue-900">{new Date().toLocaleDateString()}</span></p>
+                 <p className="border-b border-black inline-block min-w-[300px]">НИКНЕЙМ ИГРОКА: <span className="underline decoration-1 pl-2 font-sans text-blue-900">{user.nick}</span></p><br/>
+                 <p className="border-b border-black inline-block min-w-[300px]">ДАТА ЗАКЛЮЧЕНИЯ: <span suppressHydrationWarning className="underline decoration-1 pl-2 font-sans text-blue-900">{new Date().toLocaleDateString()}</span></p>
                </div>
                
                <p className="font-bold mb-4 uppercase">ТАРИФНЫЙ ПЛАН: 5 АЛМАЗОВ / НЕДЕЛЯ</p>
@@ -368,20 +380,20 @@ export default function ServicesClient({ user }: { user: any }) {
 
                <div className="mt-6 flex flex-col sm:flex-row gap-4 justify-center">
                   <button onClick={() => setShowContract(false)} className="px-6 py-3 border border-black font-bold uppercase hover:bg-zinc-100 transition-colors">Отказаться</button>
-                  <button onClick={confirmSubscribe} disabled={loading || !hasSignedContract} className="px-6 py-3 bg-blue-900 text-white font-bold uppercase hover:bg-blue-800 transition-colors disabled:opacity-50">СОГЛАСИТЬСЯ И ПОДПИСАТЬ</button>
+                  <button onClick={confirmSubscribe} disabled={loading || !hasSignedContract} className="px-6 py-3 bg-blue-900 text-foreground font-bold uppercase hover:bg-blue-800 transition-colors disabled:opacity-50">СОГЛАСИТЬСЯ И ПОДПИСАТЬ</button>
                </div>
             </div>
           </div>
         </div>
       )}
       {activeForm !== 'none' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-white text-black max-w-2xl w-full max-h-[85vh] overflow-y-auto rounded p-4 sm:p-6 relative font-serif shadow-2xl">
-            <button onClick={() => setActiveForm('none')} className="absolute top-4 right-4 text-black text-xl hover:text-red-500 font-sans">&times;</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="bg-card text-card-foreground text-black dark:text-white max-w-2xl w-full max-h-[85vh] overflow-y-auto rounded p-4 sm:p-6 relative font-serif shadow-2xl">
+            <button onClick={() => setActiveForm('none')} className="absolute top-4 right-4 text-black dark:text-white text-xl hover:text-red-500 font-sans">&times;</button>
             <div className="border border-blue-900 p-4 sm:p-6 relative">
                <div className="text-center mb-4 border-b pb-2">
                  <h2 className="text-2xl sm:text-3xl font-bold text-blue-900 uppercase">СИСТЕМА ВАВИЛОН</h2>
-                 <p className="text-sm uppercase tracking-widest mt-2 font-bold text-blue-900">Верховное Управление • Финансовый Департамент</p>
+                 <p className="text-sm uppercase  mt-2 font-bold text-blue-900">Верховное Управление • Финансовый Департамент</p>
                </div>
                
                <h3 className="text-xl font-bold text-center underline uppercase mb-4">
@@ -393,8 +405,8 @@ export default function ServicesClient({ user }: { user: any }) {
                </p>
                
                <div className="mb-4 space-y-1 font-bold uppercase text-sm">
-                 <p className="border-b border-black inline-block min-w-[250px]">НИКНЕЙМ ЗАЯВИТЕЛЯ: <span className="underline decoration-1 pl-2 font-mono text-blue-900">{user.nick}</span></p><br/>
-                 <p className="border-b border-black inline-block min-w-[250px]">ДАТА ЗАЯВЛЕНИЯ: <span suppressHydrationWarning className="underline decoration-1 pl-2 font-mono text-blue-900">{new Date().toLocaleDateString()}</span></p>
+                 <p className="border-b border-black inline-block min-w-[250px]">НИКНЕЙМ ЗАЯВИТЕЛЯ: <span className="underline decoration-1 pl-2 font-sans text-blue-900">{user.nick}</span></p><br/>
+                 <p className="border-b border-black inline-block min-w-[250px]">ДАТА ЗАЯВЛЕНИЯ: <span suppressHydrationWarning className="underline decoration-1 pl-2 font-sans text-blue-900">{new Date().toLocaleDateString()}</span></p>
                </div>
                
                <form onSubmit={confirmService}>
@@ -403,7 +415,7 @@ export default function ServicesClient({ user }: { user: any }) {
                    
                    <div>
                      <label className="block text-xs font-bold uppercase mb-1">Сумма:</label>
-                     <input required type="number" min="1" value={formParams.amount} onChange={e=>setFormParams({...formParams, amount: e.target.value})} className="w-full border-b border-black focus:outline-none focus:border-blue-900 px-2 py-1 bg-transparent font-mono" placeholder="64"/>
+                     <input required type="number" min="1" value={formParams.amount} onChange={e=>setFormParams({...formParams, amount: e.target.value})} className="w-full border-b border-black focus:outline-none focus:border-blue-900 px-2 py-1 bg-transparent font-sans" placeholder="64"/>
                    </div>
                    
                    <div>
@@ -411,7 +423,7 @@ export default function ServicesClient({ user }: { user: any }) {
   <div className="space-y-4 pt-4 border-t border-black/20">
     <div>
       <label className="block text-xs font-bold uppercase mb-1">Срок вклада (Дней):</label>
-      <select value={termDays} onChange={e=>setTermDays(parseInt(e.target.value))} className="w-full border-b border-black focus:outline-none focus:border-blue-900 px-2 py-1 bg-transparent font-mono">
+      <select value={termDays} onChange={e=>setTermDays(parseInt(e.target.value))} className="w-full border-b border-black focus:outline-none focus:border-blue-900 px-2 py-1 bg-transparent font-sans">
         <option value={7}>7 дней</option>
         <option value={30}>30 дней</option>
         <option value={90}>90 дней</option>
@@ -420,7 +432,7 @@ export default function ServicesClient({ user }: { user: any }) {
     
     <div>
       <label className="block text-xs font-bold uppercase mb-1">Счет списания:</label>
-      <select value={termFromAcc} onChange={e=>setTermFromAcc(e.target.value)} className="w-full border-b border-black focus:outline-none focus:border-blue-900 px-2 py-1 bg-transparent font-mono">
+      <select value={termFromAcc} onChange={e=>setTermFromAcc(e.target.value)} className="w-full border-b border-black focus:outline-none focus:border-blue-900 px-2 py-1 bg-transparent font-sans">
         <option value="">Выберите активный счет...</option>
         {activeAccounts.map((a:any) => (
           <option key={a.id} value={a.id}>{a.name} ({a.balance} алмазов)</option>
@@ -444,7 +456,7 @@ export default function ServicesClient({ user }: { user: any }) {
       </div>
       <div className="text-right">
         <span className="text-[10px] block mb-1">Ожидаемый доход:</span>
-        <span className="text-xl font-mono">+{expectedProfit} <img src={SECRET_TEXTURES.diamond} className="w-5 h-5 inline-block -mt-1 ml-1" alt="алмазов" /></span>
+        <span className="text-xl font-sans">+{expectedProfit} <img src={SECRET_TEXTURES.diamond} className="w-5 h-5 inline-block -mt-1 ml-1" alt="алмазов" /></span>
       </div>
     </div>
   </div>
@@ -454,7 +466,7 @@ export default function ServicesClient({ user }: { user: any }) {
     <div className="space-y-4 pt-4 border-t border-black/20">
       <div>
         <label className="block text-xs font-bold uppercase mb-1">Категория:</label>
-        <select value={creditType} onChange={e=>setCreditType(e.target.value)} className="w-full border-b border-black focus:outline-none focus:border-blue-900 px-2 py-1 bg-transparent font-mono mb-4 text-sm">
+        <select value={creditType} onChange={e=>setCreditType(e.target.value)} className="w-full border-b border-black focus:outline-none focus:border-blue-900 px-2 py-1 bg-transparent font-sans mb-4 text-sm">
           <option value="consumer">Потребительский</option>
           <option value="business">Развитие бизнеса</option>
           <option value="building">Строительство/Инфраструктура</option>
@@ -462,11 +474,11 @@ export default function ServicesClient({ user }: { user: any }) {
       </div>
 
       <label className="block text-xs font-bold uppercase mb-1">Цель:</label>
-      <textarea value={formParams.details} onChange={e=>setFormParams({...formParams, details: e.target.value})} className="w-full border border-black focus:outline-none focus:border-blue-900 p-2 bg-transparent font-mono text-sm resize-none mb-4" rows={3} />
+      <textarea value={formParams.details} onChange={e=>setFormParams({...formParams, details: e.target.value})} className="w-full border border-black focus:outline-none focus:border-blue-900 p-2 bg-transparent font-sans text-sm resize-none mb-4" rows={3} />
 
       <div>
         <label className="block text-xs font-bold uppercase mb-1">Срок:</label>
-        <select value={termDays} onChange={e=>setTermDays(parseInt(e.target.value))} className="w-full border-b border-black focus:outline-none focus:border-blue-900 px-2 py-1 bg-transparent font-mono">
+        <select value={termDays} onChange={e=>setTermDays(parseInt(e.target.value))} className="w-full border-b border-black focus:outline-none focus:border-blue-900 px-2 py-1 bg-transparent font-sans">
           <option value={7}>7 дней</option>
           <option value={30}>30 дней</option>
           <option value={90}>90 дней</option>
@@ -480,7 +492,7 @@ export default function ServicesClient({ user }: { user: any }) {
         </div>
         <div className="text-right">
           <span className="text-[10px] block mb-1">К возврату:</span>
-          <span className="text-xl font-mono">{expectedPayback} <img src={SECRET_TEXTURES.diamond} className="w-5 h-5 inline-block -mt-1 ml-1" alt="алмазов" /></span>
+          <span className="text-xl font-sans">{expectedPayback} <img src={SECRET_TEXTURES.diamond} className="w-5 h-5 inline-block -mt-1 ml-1" alt="алмазов" /></span>
         </div>
       </div>
     </div>
@@ -509,7 +521,7 @@ export default function ServicesClient({ user }: { user: any }) {
 
                  <div className="mt-6 flex flex-col sm:flex-row gap-4 justify-center">
                     <button type="button" onClick={() => setActiveForm('none')} className="px-6 py-3 border border-black font-bold uppercase hover:bg-zinc-100 transition-colors">Отменить</button>
-                    <button type="submit" disabled={loading || !hasSignedService} className="px-6 py-3 bg-blue-900 text-white font-bold uppercase hover:bg-blue-800 transition-colors disabled:opacity-50">ПОДПИСАТЬ ЗАЯВЛЕНИЕ</button>
+                    <button type="submit" disabled={loading || !hasSignedService} className="px-6 py-3 bg-blue-900 text-foreground font-bold uppercase hover:bg-blue-800 transition-colors disabled:opacity-50">ПОДПИСАТЬ ЗАЯВЛЕНИЕ</button>
                  </div>
                </form>
             </div>
